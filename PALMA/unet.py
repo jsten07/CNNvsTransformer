@@ -320,7 +320,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--name', type=str, default='UNet_baseline', help='name of the model as it should be saved')
     parser.add_argument('--data_path', type=str, default='/scratch/tmp/j_sten07/data', help='path were the input data is stored')
-    parser.add_argument('--output_path', type=str, default='/scratch/tmp/j_sten07/output', help='path to directory where the output should be stored')
+    parser.add_argument('--output_path', type=str, default='/scratch/tmp/j_sten07/output/', help='path to directory where the output should be stored')
     opt = parser.parse_args()
 
     train_dataset, val_dataset, test_dataset = load_datasets(opt.data_path)
