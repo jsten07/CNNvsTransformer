@@ -16,8 +16,9 @@ import torch
 from torch.utils.data import Dataset, DataLoader
 from torch.optim.lr_scheduler import _LRScheduler
 
-# For dice loss function
-import segmentation_models_pytorch as smp
+# For loss function
+# Probably dont need to load within utils
+# import segmentation_models_pytorch as smp 
 
 # for interactive widgets
 # import IPython.display as Disp

@@ -3,3 +3,5 @@
 Master Thesis at the Institute for Geoinformatics, University of Münster, Germany. 
 
 A lot of the code was inspired by https://github.com/suryajayaraman/Semantic-Segmentation-using-Deep-Learning.
+
+Trying to train the models on PALMA cluster. 
