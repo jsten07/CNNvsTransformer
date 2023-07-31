@@ -12,7 +12,7 @@ from collections import namedtuple
 # DL library imports
 import torch
 # import torch.nn as nn
-from torchvision import transforms
+# from torchvision import transforms
 from torch.utils.data import Dataset, DataLoader
 from torch.optim.lr_scheduler import _LRScheduler
 
@@ -27,18 +27,18 @@ import segmentation_models_pytorch as smp
 # FILE CONSTANTS
 ###################################
 
-# Convert to torch tensor and normalize images using Imagenet values
-preprocess = transforms.Compose([
-                    transforms.ToTensor(),
-                    transforms.Normalize(mean=(0.485, 0.56, 0.406), std=(0.229, 0.224, 0.225))
-                ])
+# # Convert to torch tensor and normalize images using Imagenet values
+# preprocess = transforms.Compose([
+#                     transforms.ToTensor(),
+#                     transforms.Normalize(mean=(0.485, 0.56, 0.406), std=(0.229, 0.224, 0.225))
+#                 ])
 
-# when using torch datasets we defined earlier, the output image
-# is normalized. So we're defining an inverse transformation to 
-# transform to normal RGB format
-inverse_transform = transforms.Compose([
-        transforms.Normalize((-0.485/0.229, -0.456/0.224, -0.406/0.225), (1/0.229, 1/0.224, 1/0.225))
-    ])
+# # when using torch datasets we defined earlier, the output image
+# # is normalized. So we're defining an inverse transformation to 
+# # transform to normal RGB format
+# inverse_transform = transforms.Compose([
+#         transforms.Normalize((-0.485/0.229, -0.456/0.224, -0.406/0.225), (1/0.229, 1/0.224, 1/0.225))
+#     ])
 
 
 # Constants for Standard color mapping
