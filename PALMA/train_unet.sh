@@ -12,14 +12,14 @@
 
 # load modules with available GPU support
 
-module load palma/2020b
+module load palma/2020b # version supports installation of segmentation_models_pytorch
 module load fosscuda
 module load OpenCV
 module load PyTorch
-module load torchvision
+# module load torchvision # not supported by 2020b toolchain
+# module load tqdm # not supported by 2020b toolchain
 
-# pip install --user -r requirements.txt
+pip install --user -r requirements.txt
 
 # run your application
-
 python3 unet.py --data_path /scratch/tmp/j_sten07/data/Potsdam/patches/500px
