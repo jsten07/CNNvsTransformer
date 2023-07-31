@@ -191,12 +191,14 @@ def load_datasets(data_dir):
 
     return train_dataset, valid_dataset, test_dataset
 
+
 def make_loader(train_set, val_set, test_set):
 
     train_loader = DataLoader(train_set, batch_size=4, shuffle=True)#, num_workers=4)
     valid_loader = DataLoader(val_set, batch_size=1, shuffle=False)#, num_workers=2)
     test_loader = DataLoader(test_set, batch_size=1, shuffle=False)#, num_workers=4)
-
+    
+    return train_loader, valid_loader, test_loader
 
 
 
@@ -320,10 +322,11 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--name', type=str, default='UNet_baseline', help='name of the model as it should be saved')
     parser.add_argument('--data_path', type=str, default='/scratch/tmp/j_sten07/data', help='path were the input data is stored')
-    parser.add_argument('--output_path', type=str, default='/scratch/tmp/j_sten07/output', help='path to directory where the output should be stored')
+    parser.add_argument('--output_path', type=str, default='/scratch/tmp/j_sten07/output/', help='path to directory where the output should be stored')
     opt = parser.parse_args()
 
     train_dataset, val_dataset, test_dataset = load_datasets(opt.data_path)
+    print(train_dataset)
 
     train_loader, val_loader, test_loader = make_loader(train_dataset, val_dataset, test_dataset)
 
