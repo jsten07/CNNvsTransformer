@@ -190,7 +190,7 @@ def load_datasets(data_dir):
     return train_dataset, valid_dataset, test_dataset
 
 
-def make_loader(train_set, val_set, test_set, train_batch=4, val_batch=2, train_worker=-1, val_worker=-1):
+def make_loader(train_set, val_set, test_set, train_batch=4, val_batch=2, train_worker=0, val_worker=0):
 
     train_loader = DataLoader(train_set, batch_size=train_batch, shuffle=True, num_workers=train_worker)
     valid_loader = DataLoader(val_set, batch_size=val_batch, shuffle=False, num_workers=val_worker)
@@ -210,8 +210,8 @@ if __name__ == '__main__':
     parser.add_argument('--lr', type=float, default=3e-4, help='maximum learning rate')
     parser.add_argument('--train_batch', type=int, default=4, help='batch size for training data')
     parser.add_argument('--val_batch', type=int, default=2, help='batch size for validation data')
-    parser.add_argument('--train_worker', type=int, default=-1, help='number of workers for training data')
-    parser.add_argument('--val_worker', type=int, default=-1, help='number of workers for validation data')
+    parser.add_argument('--train_worker', type=int, default=0, help='number of workers for training data')
+    parser.add_argument('--val_worker', type=int, default=0, help='number of workers for validation data')
     opt = parser.parse_args()
 
     # load dataset and create data loader
