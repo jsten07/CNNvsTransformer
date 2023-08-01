@@ -326,7 +326,6 @@ if __name__ == '__main__':
     opt = parser.parse_args()
 
     train_dataset, val_dataset, test_dataset = load_datasets(opt.data_path)
-    print(train_dataset)
 
     train_loader, val_loader, test_loader = make_loader(train_dataset, val_dataset, test_dataset)
 
