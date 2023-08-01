@@ -266,8 +266,8 @@ def evaluate_model(model, dataloader, criterion, metric_class, num_classes, devi
 def train_validate_model(model, num_epochs, model_name, criterion, optimizer, 
                          device, dataloader_train, dataloader_valid, 
                          metric_class, metric_name, num_classes, lr_scheduler = None,
-                         output_path = '.'):
-    early_stop_threshold = 5
+                         output_path = '.', early_stop = 5):
+    early_stop_threshold = early_stop
     
     # initialize placeholders for running values    
     results = []
@@ -276,7 +276,6 @@ def train_validate_model(model, num_epochs, model_name, criterion, optimizer,
     
     model_folder = os.path.join(output_path, model_name)
     lastmodel_path = f"{model_folder}/{model_name}_last.pt"
-    print(lastmodel_path)
 
     if not os.path.exists(model_folder):
         os.makedirs(model_folder)
