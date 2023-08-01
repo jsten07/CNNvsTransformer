@@ -12,6 +12,7 @@
 
 # load modules with available GPU support
 
+# module purge
 module load palma/2020b # version supports installation of segmentation_models_pytorch
 module load fosscuda
 module load OpenCV
