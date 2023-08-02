@@ -6,8 +6,8 @@ from PALMA.utils import train_validate_model     # train validate function
 from PALMA.utils import IoU
 from PALMA.utils import train_validate_model     # train validate function
 
-from PALMA.data_utils import load_datasets
-from PALMA.data_utils import make_loader
+from utils import load_datasets
+from utils import make_loader
 
 from models import UNet, segformer
 
