@@ -76,5 +76,5 @@ if __name__ == '__main__':
 
     # run model training with given arguments
     _ = train_validate_model(model, N_EPOCHS, modelname, criterion, optimizer, 
-                         device, train_loader, val_loader, IoU, 'metrices',
+                         device, train_loader, val_loader, IoU, 
                          NUM_CLASSES, lr_scheduler = None, output_path = opt.output_path, early_stop=opt.stop_threshold)
