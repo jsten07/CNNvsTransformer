@@ -67,7 +67,7 @@ if __name__ == '__main__':
     if not opt.name == None:
         modelname = opt.name
     else:
-        modelname = f"{opt.model}_{opt.epochs}epochs_{opt.loss_function}loss_{opt.lr}lr"
+        modelname = f"{opt.model}_{opt.epochs}epochs_{opt.loss_function}loss_{opt.lr}lr_{opt.train_batch}batches"
     
     # create optimizer and scheduler
     optimizer = optim.Adam(model.parameters(), lr=MAX_LR)
