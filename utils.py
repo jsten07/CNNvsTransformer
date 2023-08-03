@@ -7,6 +7,7 @@ np.set_printoptions(threshold=np.inf)
 import pandas as pd
 from tqdm import tqdm
 import matplotlib.pyplot as plt
+from matplotlib import colors
 from collections import namedtuple
 
 # DL library imports
@@ -416,6 +417,8 @@ def visualize_predictions(model : torch.nn.Module, dataSet : Dataset,
     model.to(device=device)
     model.eval()
 
+    cmap = colors.ListedColormap(['green','red'])
+
     # predictions on random samples
     testSamples = np.random.choice(len(dataSet), numTestSamples).tolist()
     # _, axes = plt.subplots(numTestSamples, 3, figsize=(3*6, numTestSamples * 4))
@@ -439,6 +442,11 @@ def visualize_predictions(model : torch.nn.Module, dataSet : Dataset,
         label_class_predicted = y_pred.cpu().detach().numpy()    
         axes[i, 2].imshow(id_to_color[label_class_predicted])
         axes[i, 2].set_title("Predicted Label")
+
+        # difference groundtruth and prediction
+        diff = label_class != label_class_predicted
+        axes[i, 3].imshow(diff, cmap = rgcmap)
+        axes[i, 3].set_title("Difference")
 
     plt.show()
 
@@ -563,6 +571,9 @@ class Dataset(BaseDataset):
             image = self.preprocessing(image)
             
         return image, mask
+    
+    def get_name(self, i):
+        return self.im_ids[i]
         
     def __len__(self):
         return len(self.im_ids)
