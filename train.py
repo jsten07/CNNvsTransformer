@@ -2,9 +2,8 @@
 # basic imports
 import argparse
 
-from PALMA.utils import train_validate_model     # train validate function
-from PALMA.utils import IoU
-from PALMA.utils import train_validate_model     # train validate function
+from utils import train_validate_model     # train validate function
+from utils import IoU
 
 from utils import load_datasets
 from utils import make_loader
