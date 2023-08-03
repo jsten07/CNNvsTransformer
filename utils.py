@@ -137,7 +137,7 @@ class IoU:
         accuracy = np.diag(hist).sum() / hist.sum()
         class_accuracy = np.diag(hist) / hist.sum(axis = 1)
         # return {'hist' : hist, 'accuracy' : accuracy, 'classwise_accuracy' : class_accuracy, 'miou' : mean_iu, 'classwise_iou' : iu}
-        return {'accuracy' : accuracy, 'classwise_accuracy' : class_accuracy, 'miou' : mean_iu, 'classwise_iou' : iu}
+        return {'accuracy' : accuracy, 'classwise_accuracy' : class_accuracy, 'miou' : mean_iu, 'classwise_iou' : iu, 'matrix': hist}
 
     def reset(self):
         self.iou_metric = 0.0
