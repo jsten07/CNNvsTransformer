@@ -23,7 +23,7 @@ if __name__ == '__main__':
     parser.add_argument('--name', type=str, default=None, help='name of the model as it should be saved')
     parser.add_argument('--data_path', type=str, default='/scratch/tmp/j_sten07/data', help='path were the input data is stored')
     parser.add_argument('--output_path', type=str, default='/scratch/tmp/j_sten07/output/', help='path to directory where the output should be stored')
-    parser.add_argument('--model', choices=['UNet', 'segformer'], default='UNet', help="the model architecture that should be trained; choose from 'UNet' and 'segformer'")
+    parser.add_argument('--model', choices=['unet', 'segformer'], default='unet', help="the model architecture that should be trained; choose from 'UNet' and 'segformer'")
     parser.add_argument('--epochs', type=int, default=20, help='epochs the model should be trained')
     parser.add_argument('--loss_function', type=str, choices=['dice', 'jaccard'], default='jaccard')
     parser.add_argument('--lr', type=float, default=3e-4, help='maximum learning rate')
@@ -58,7 +58,7 @@ if __name__ == '__main__':
     MAX_LR = opt.lr
 
     # create model
-    if opt.model == 'UNet':
+    if opt.model == 'unet':
         model = UNet(in_channels=3, out_channels=NUM_CLASSES, layer_channels=[64, 128, 256, 512]).to(device)
     if opt.model == 'segformer':
         model = segformer(in_channels=3, num_classes=NUM_CLASSES).to(device)
