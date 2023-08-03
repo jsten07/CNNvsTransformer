@@ -23,4 +23,4 @@ module load PyTorch
 pip install --user -r requirements.txt
 
 # run your application
-python3 ../train.py --model segformer --data_path /scratch/tmp/j_sten07/data/Potsdam/patches/500px --epochs 30 --train_batch 8 --train_worker 4 --val_batch 4 --val_worker 4
+python3 ../train.py --model segformer --data_path /scratch/tmp/j_sten07/data/Potsdam/patches/500px --epochs 30 --train_batch 8 --train_worker 4 --val_batch 8 --val_worker 4
