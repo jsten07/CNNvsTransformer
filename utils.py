@@ -247,9 +247,28 @@ def evaluate_model(model, dataloader, criterion, metric_class, num_classes, devi
 
 def train_validate_model(model, num_epochs, model_name, criterion, optimizer, 
                          device, dataloader_train, dataloader_valid, 
-                         metric_class, metric_name, num_classes, lr_scheduler = None,
-                         output_path = '.'):
-    early_stop_threshold = 5
+                         metric_class, num_classes, lr_scheduler = None,
+                         output_path = '.', early_stop = -1):
+    """Train model and validate
+    # TODO
+    Args:
+        model
+        num_epochs
+        model_name
+        criterion
+        optimizer
+        device
+        dataloader_train
+        dataloader_valid
+        metric_class
+        num_classes
+        lr_scheduler 
+        output_path
+        early_stop: number of epochs after which the training 
+            should be stopped if the validation loss did not increase; 
+            -1: do not apply early stop
+    """
+    early_stop_threshold = early_stop
     
     # initialize placeholders for running values    
     results = []
@@ -383,10 +402,11 @@ def train_validate_model(model, num_epochs, model_name, criterion, optimizer,
                 'epoch': epoch,
             }, f"{output_path}{model_name}/{model_name}_best.pt")
             print('best model saved')
-        elif epoch - best_epoch > early_stop_threshold:
-            # stop training if validation_loss did not improve for early_stop_threshold epochs
-            print(f"Early stopped training at epoch {epoch} because loss did not improve for {early_stop_threshold} epochs")
-            break  # terminate the training loop
+        elif early_stop_threshold != -1:
+            if epoch - best_epoch > early_stop_threshold:
+                # stop training if validation_loss did not improve for early_stop_threshold epochs
+                print(f"Early stopped training at epoch {epoch} because loss did not improve for {early_stop_threshold} epochs")
+                break  # terminate the training loop
         
 
 
