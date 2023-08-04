@@ -31,7 +31,7 @@ if __name__ == '__main__':
     parser.add_argument('--val_batch', type=int, default=2, help='batch size for validation data')
     parser.add_argument('--train_worker', type=int, default=0, help='number of workers for training data')
     parser.add_argument('--val_worker', type=int, default=0, help='number of workers for validation data')
-    parser.add_argument('--stop_threshold', type=int, default=5, help='number of epochs without improvement in validation loss after that the training should be stopped')
+    parser.add_argument('--stop_threshold', type=int, default=-1, help='number of epochs without improvement in validation loss after that the training should be stopped')
     opt = parser.parse_args()
 
     # load dataset and create data loader
@@ -76,5 +76,5 @@ if __name__ == '__main__':
 
     # run model training with given arguments
     _ = train_validate_model(model, N_EPOCHS, modelname, criterion, optimizer, 
-                         device, train_loader, val_loader, IoU, 'metrices',
+                         device, train_loader, val_loader, IoU, 
                          NUM_CLASSES, lr_scheduler = None, output_path = opt.output_path, early_stop=opt.stop_threshold)
