@@ -8,6 +8,7 @@ import pandas as pd
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 from matplotlib import colors
+from matplotlib.patches import Patch
 from collections import namedtuple
 
 # DL library imports
@@ -420,6 +421,19 @@ def train_validate_model(model, num_epochs, model_name, criterion, optimizer,
 ###################################
 # FUNCTION TO VISUALIZE MODEL PREDICTIONS
 ###################################
+legend_elements = [
+    Patch(facecolor=train_id_to_color[0]/255, label=drivables[0].name),  
+    Patch(facecolor=train_id_to_color[1]/255, label=drivables[1].name),
+    Patch(facecolor=train_id_to_color[2]/255, label=drivables[2].name),
+    Patch(facecolor=train_id_to_color[3]/255, label=drivables[3].name),
+    Patch(facecolor=train_id_to_color[4]/255, label=drivables[4].name),
+    Patch(facecolor=train_id_to_color[5]/255, label=drivables[5].name),
+                  ]
+
+diff_legend = [
+    Patch(facecolor='green', label='true'), 
+    Patch(facecolor='red', label='false'), 
+]
 
 def visualize_predictions(model : torch.nn.Module, dataSet : Dataset,  
         axes, device :torch.device, numTestSamples : int,
@@ -437,7 +451,7 @@ def visualize_predictions(model : torch.nn.Module, dataSet : Dataset,
     model.to(device=device)
     model.eval()
 
-    cmap = colors.ListedColormap(['green','red'])
+    rgcmap = colors.ListedColormap(['green','red'])
 
     # predictions on random samples
     testSamples = np.random.choice(len(dataSet), numTestSamples).tolist()
@@ -450,7 +464,7 @@ def visualize_predictions(model : torch.nn.Module, dataSet : Dataset,
         inputImage = inputImage.to(device)
         landscape = inverse_transform(inputImage).permute(1, 2, 0).cpu().detach().numpy()
         axes[i, 0].imshow(landscape)
-        axes[i, 0].set_title("Image")
+        axes[i, 0].set_title(dataSet.get_name(sampleID))
 
         # groundtruth label image
         label_class = gt.cpu().detach().numpy()
@@ -461,11 +475,13 @@ def visualize_predictions(model : torch.nn.Module, dataSet : Dataset,
         y_pred = torch.argmax(model(inputImage.unsqueeze(0)), dim=1).squeeze(0)
         label_class_predicted = y_pred.cpu().detach().numpy()    
         axes[i, 2].imshow(id_to_color[label_class_predicted])
+        axes[i, 2].legend(handles=legend_elements, loc = 'upper left', bbox_to_anchor=(-0.7, 0.9))
         axes[i, 2].set_title("Predicted Label")
 
         # difference groundtruth and prediction
         diff = label_class != label_class_predicted
         axes[i, 3].imshow(diff, cmap = rgcmap)
+        axes[i, 3].legend(handles=diff_legend)
         axes[i, 3].set_title("Difference")
 
     plt.show()
