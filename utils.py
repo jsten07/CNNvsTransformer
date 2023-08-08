@@ -115,31 +115,37 @@ class IoU:
             self.num_classes * label_true[mask].astype(int) + label_pred[mask],
             minlength=self.num_classes ** 2,
         ).reshape(self.num_classes, self.num_classes)
-        # print(hist[0:500])
         return hist
 
     def update(self, y_preds, labels):
         """ Function finds the IoU for the input batch
         and add batch metrics to overall metrics """
-        # print(y_preds[:,:,0,0:500])
         predicted_labels = torch.argmax(y_preds, dim=1)
         batch_confusion_matrix = self._fast_hist(labels.numpy().flatten(), predicted_labels.numpy().flatten())
         self.confusion_matrix += batch_confusion_matrix
     
-    def compute(self):
+    def compute(self, matrix = None):
         """ Computes overall meanIoU metric from confusion matrix data """ 
         hist = self.confusion_matrix
+        # if a matrix is given as argument to the function, compute the metrices based on that matrix 
+        if matrix:
+            hist = matrix
         # divide number of pixels segmented correctly (area of overlap) 
         # by number of pixels that were segmented in this class and that should have been segmented in this class (hist.sum(axis=1) + hist.sum(axis=0))
         # minus 1 time the pixels segmented correctly in the denominator as they are in both sums
+        # IoU = TP / (TP + FP + FN)
+        # TP = np.diag(hist); FP = hist.sum(axis=0) - np.diag(hist); FN = hist.sum(axis=1) - np.diag(hist) ?
         iu = np.diag(hist) / (hist.sum(axis=1) + hist.sum(axis=0) - np.diag(hist)) 
         # calculate mean of IoU per class
         mean_iu = np.nanmean(iu)
         # calculate accuracy
-        accuracy = np.diag(hist).sum() / hist.sum()
-        class_accuracy = np.diag(hist) / hist.sum(axis = 1)
+        accuracy = np.diag(hist).sum() / hist.sum().sum()
+        # class_accuracy = (np.diag(hist) + (hist.sum().sum() - hist.sum(axis=1) - hist.sum(axis=0) + np.diag(hist))) / (hist.sum().sum())
+        # calculate dice coefficient / f1 score
+        f1 = 2*np.diag(hist) / (hist.sum(axis=1) + hist.sum(axis=0))
+        meanf1 = np.nanmean(f1)
         # return {'hist' : hist, 'accuracy' : accuracy, 'classwise_accuracy' : class_accuracy, 'miou' : mean_iu, 'classwise_iou' : iu}
-        return {'accuracy' : accuracy, 'classwise_accuracy' : class_accuracy, 'miou' : mean_iu, 'classwise_iou' : iu, 'matrix': hist}
+        return {'accuracy' : accuracy, 'miou' : mean_iu, 'classwise_iou' : iu, 'classwise_f1': f1, 'f1_mean': meanf1, 'matrix': hist}
 
     def reset(self):
         self.iou_metric = 0.0
@@ -324,23 +330,8 @@ def train_validate_model(model, num_epochs, model_name, criterion, optimizer,
             
             # Forward pass
             y_preds = model(inputs)
-            # print(inputs)
-            # # print(len(inputs))
-            # # print(max(inputs))
-            # print(y_preds)
-            # print(torch.max(y_preds))
-            # # print(len(y_preds))
-            # # print(max(y_preds))
-            # print(labels)
-            # print(inputs.shape)
-            # print(y_preds.shape)
-            # print(labels.shape)
-            # # print(len(labels))
-            # # print(max(labels))
             loss = criterion(y_preds, labels)
-            # print(loss)
             train_loss += loss.item()
-            # print(train_loss)
               
             # Backward pass
             loss.backward()
@@ -353,9 +344,7 @@ def train_validate_model(model, num_epochs, model_name, criterion, optimizer,
             
         # compute per batch losses, metric value
         train_loss = train_loss / len(dataloader_train)
-        # train_loss_alt, train_metric = evaluate_model(
-        #                 model, dataloader_train, criterion, metric_class, num_classes, device)
-        # print(train_loss_alt)
+
         endtime_train = datetime.now()
         validation_loss, validation_metric = evaluate_model(
                         model, dataloader_valid, criterion, metric_class, num_classes, device)
@@ -364,8 +353,7 @@ def train_validate_model(model, num_epochs, model_name, criterion, optimizer,
         
         duration_training = endtime_train - starttime
         
-        # print(f'Epoch: {epoch+1}, trainLoss:{train_loss:6.5f}, validationLoss:{validation_loss:6.5f}, train_metrices: {train_metric}, validation_metrices: {validation_metric}')
-        print(f'Epoch: {epoch+1}, trainLoss:{train_loss:6.5f}, validationLoss:{validation_loss:6.5f}, validation_metrices: {validation_metric}, ttainingDuration: {duration_training}')
+        print(f'Epoch: {epoch+1}, trainLoss:{train_loss:6.5f}, validationLoss:{validation_loss:6.5f}, validation_metrices: {validation_metric}, trainingDuration {duration_training}')
         
         # store results
         results.append({'epoch': epoch, 
@@ -385,7 +373,7 @@ def train_validate_model(model, num_epochs, model_name, criterion, optimizer,
             'min_val_loss': min_val_loss,
             'results': results,
             'epoch': epoch,
-        }, f"{output_path}{model_name}/{model_name}_last.pt")
+        }, f"{output_path}/{model_name}/{model_name}_last.pt")
         
         # if validation loss has decreased, save model and reset variable
         if validation_loss <= min_val_loss:
@@ -401,7 +389,7 @@ def train_validate_model(model, num_epochs, model_name, criterion, optimizer,
                 'min_val_loss': min_val_loss,
                 'results': results,
                 'epoch': epoch,
-            }, f"{output_path}{model_name}/{model_name}_best.pt")
+            }, f"{output_path}/{model_name}/{model_name}_best.pt")
             print('best model saved')
         elif early_stop_threshold != -1:
             if epoch - best_epoch > early_stop_threshold:
