@@ -2,3 +2,4 @@ torchvision==0.10.0
 segmentation_models_pytorch
 tqdm
 einops
+matplotlib==3.6.0
