@@ -22,7 +22,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--name', type=str, default=None, help='name of the model as it should be saved')
     parser.add_argument('--data_path', type=str, default='/scratch/tmp/j_sten07/data', help='path were the input data is stored')
-    parser.add_argument('--output_path', type=str, default='/scratch/tmp/j_sten07/output/', help='path to directory where the output should be stored')
+    parser.add_argument('--output_path', type=str, default='/scratch/tmp/j_sten07/output', help='path to directory where the output should be stored')
     parser.add_argument('--model', choices=['unet', 'segformer'], default='unet', help="the model architecture that should be trained; choose from 'UNet' and 'segformer'")
     parser.add_argument('--epochs', type=int, default=20, help='epochs the model should be trained')
     parser.add_argument('--loss_function', type=str, choices=['dice', 'jaccard'], default='jaccard')
@@ -32,6 +32,7 @@ if __name__ == '__main__':
     parser.add_argument('--train_worker', type=int, default=0, help='number of workers for training data')
     parser.add_argument('--val_worker', type=int, default=0, help='number of workers for validation data')
     parser.add_argument('--stop_threshold', type=int, default=-1, help='number of epochs without improvement in validation loss after that the training should be stopped')
+    parser.add_argument('--lr_scheduler', type=bool, default=False, help='wether to use the implemented learning rate scheduler or not')
     opt = parser.parse_args()
 
     # load dataset and create data loader
@@ -67,14 +68,17 @@ if __name__ == '__main__':
     if not opt.name == None:
         modelname = opt.name
     else:
-        modelname = f"{opt.model}_{opt.epochs}epochs_{opt.loss_function}loss_{opt.lr}lr_{opt.train_batch}batches"
+        modelname = f"{opt.model}_{opt.epochs}epochs_{opt.loss_function}loss_{opt.lr}lr_lrscheduler{opt.lr_scheduler}_{opt.train_batch}batches"
     
     # create optimizer and scheduler
     optimizer = optim.Adam(model.parameters(), lr=MAX_LR)
-    scheduler = OneCycleLR(optimizer, max_lr= MAX_LR, epochs = N_EPOCHS, steps_per_epoch = len(train_loader), 
+    if opt.lr_scheduler: 
+        lr_scheduler = OneCycleLR(optimizer, max_lr= MAX_LR, epochs = N_EPOCHS, steps_per_epoch = len(train_loader), 
                         pct_start=0.3, div_factor=10, anneal_strategy='cos')
+    else:
+        lr_scheduler = None
 
     # run model training with given arguments
     _ = train_validate_model(model, N_EPOCHS, modelname, criterion, optimizer, 
                          device, train_loader, val_loader, IoU, 
-                         NUM_CLASSES, lr_scheduler = None, output_path = opt.output_path, early_stop=opt.stop_threshold)
+                         NUM_CLASSES, lr_scheduler = lr_scheduler, output_path = opt.output_path, early_stop=opt.stop_threshold)
