@@ -425,7 +425,7 @@ diff_legend = [
 
 def visualize_predictions(model : torch.nn.Module, dataSet : Dataset,  
         axes, device :torch.device, numTestSamples : int,
-        id_to_color : np.ndarray = train_id_to_color):
+        id_to_color : np.ndarray = train_id_to_color, seed : int = None):
     """Function visualizes predictions of input model on samples from
     cityscapes dataset provided
 
@@ -440,6 +440,8 @@ def visualize_predictions(model : torch.nn.Module, dataSet : Dataset,
     model.eval()
 
     rgcmap = colors.ListedColormap(['green','red'])
+    
+    np.random.seed(seed)
 
     # predictions on random samples
     testSamples = np.random.choice(len(dataSet), numTestSamples).tolist()
