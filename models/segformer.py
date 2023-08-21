@@ -89,8 +89,8 @@ class efficient_self_attention(nn.Module):
         x = attn @ v
         x = rearrange(x, 'b m hw c -> b hw (m c)')
         x = self.proj(x)
-        x = F.dropout(x, p=self.dropout_p, training=self.training)
-        return x
+        attn_output = {'key' : k, 'query' : q, 'value' : v, 'attn' : attn}
+        return x, attn_output
     
 
 class transformer_block(nn.Module):
@@ -112,7 +112,7 @@ class transformer_block(nn.Module):
         # Norm -> self-attention
         skip = x
         x = self.norm1(x)
-        x = self.attn(x, h, w)
+        x, attn_output = self.attn(x, h, w)
         x = drop_path(x, drop_prob=self.drop_path_p, training=self.training)
         x = x + skip
 
@@ -122,7 +122,7 @@ class transformer_block(nn.Module):
         x = self.ffn(x, h, w)
         x = drop_path(x, drop_prob=self.drop_path_p, training=self.training)
         x = x + skip
-        return x
+        return x, attn_output
     
 
 class mix_transformer_stage(nn.Module):
@@ -133,12 +133,26 @@ class mix_transformer_stage(nn.Module):
         self.norm = norm
 
     def forward(self, x):
+        # patch embedding and store required data
+        stage_output  = {} # a 
+        stage_output['patch_embed_input'] = x # a
         x, h, w = self.patch_embed(x)
+        stage_output['patch_embed_h'] = h # a
+        stage_output['patch_embed_w'] = w # a
+        stage_output['patch_embed_output'] = x # a
+        
         for block in self.blocks:
-            x = block(x, h, w)
+            x, attn_output = block(x, h, w)  # attention_output added
+                        
         x = self.norm(x)
         x = rearrange(x, 'b (h w) c -> b c h w', h=h, w=w)
-        return x
+        
+        # store last attention block data 
+        # in stages' output data
+        for k,v in attn_output.items():  # a
+            stage_output[k] = v  # a
+        del attn_output  # a
+        return x, stage_output # stage output added
     
 
 class mix_transformer(nn.Module):
@@ -173,10 +187,17 @@ class mix_transformer(nn.Module):
 
     def forward(self, x):
         outputs = []
-        for stage in self.stages:
-            x = stage(x)
+        for i,stage in enumerate(self.stages):
+            x, _ = stage(x)
             outputs.append(x)
         return outputs
+    
+    def get_attn_outputs(self, x):
+        stage_outputs = []
+        for i,stage in enumerate(self.stages):
+            x, stage_data = stage(x)
+            stage_outputs.append(stage_data)
+        return stage_outputs
     
 
 class segformer_head(nn.Module):
@@ -221,15 +242,31 @@ class segformer_head(nn.Module):
     
 
 class segformer_mit_b3(nn.Module):    
-    def __init__(self, in_channels, num_classes):
+    def __init__(self, in_channels, num_classes, depths=(3, 4, 18, 3)):
         super().__init__()
         # Encoder block    
         self.backbone = mix_transformer(in_chans=in_channels, embed_dims=(64, 128, 320, 512), 
-                                    num_heads=(1, 2, 5, 8), depths=(3, 4, 18, 3),
+                                    num_heads=(1, 2, 5, 8), depths=depths,
                                     sr_ratios=(8, 4, 2, 1), dropout_p=0.0, drop_path_p=0.1)
         # decoder block
         self.decoder_head = segformer_head(in_channels=(64, 128, 320, 512), 
                                     num_classes=num_classes, embed_dim=256)
+        
+#         # init weights
+#         self.apply(self._init_weights)  # a
+        
+        
+#     def _init_weights(self, m):
+#         if isinstance(m, nn.Linear):
+#             trunc_normal_(m.weight, std=.02)
+#             if isinstance(m, nn.Linear) and m.bias is not None:
+#                 nn.init.constant_(m.bias, 0)
+#         elif isinstance(m, nn.LayerNorm):
+#             nn.init.constant_(m.bias, 0)
+#             nn.init.constant_(m.weight, 1.0)
+#         elif isinstance(m, nn.Conv2d):
+#             nn.init.kaiming_normal_(m.weight, mode="fan_out", nonlinearity="relu")
+    
 
     def forward(self, x):
         image_hw = x.shape[2:]
@@ -237,3 +274,12 @@ class segformer_mit_b3(nn.Module):
         x = self.decoder_head(x)
         x = F.interpolate(x, size=image_hw, mode='bilinear', align_corners=False)
         return x
+    
+    def get_attention_outputs(self, x):
+        return self.backbone.get_attn_outputs(x)
+    
+    def get_last_selfattention(self, x):
+        outputs = self.get_attention_outputs(x)
+        return outputs[-1].get('attn', None)
+    
+    
