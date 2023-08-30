@@ -50,9 +50,12 @@ class efficient_self_attention(nn.Module):
     def __init__(self, attn_dim, num_heads, dropout_p, sr_ratio):
         super().__init__()
         assert attn_dim % num_heads == 0, f'expected attn_dim {attn_dim} to be a multiple of num_heads {num_heads}'
+        # (64, 128, 320, 512)
         self.attn_dim = attn_dim
+        # (1, 2, 5, 8)
         self.num_heads = num_heads
         self.dropout_p = dropout_p
+        # (8, 4, 2, 1)
         self.sr_ratio = sr_ratio
         if sr_ratio > 1:
             self.sr = nn.Conv2d(attn_dim, attn_dim, kernel_size=sr_ratio, stride=sr_ratio)
@@ -62,6 +65,7 @@ class efficient_self_attention(nn.Module):
         # Query - Key Dot product is scaled by root of head_dim
         self.q = nn.Linear(attn_dim, attn_dim, bias=True)
         self.kv = nn.Linear(attn_dim, attn_dim * 2, bias=True)
+        # leads to 0.125 = 1/8 every time
         self.scale = (attn_dim // num_heads) ** -0.5
 
         # Projecting concatenated outputs from 
@@ -70,26 +74,37 @@ class efficient_self_attention(nn.Module):
 
 
     def forward(self, x, h, w):
+        # create queries, i.e. apply linear transformation 
         q = self.q(x)
+        # print(q.shape)
         q = rearrange(q, ('b hw (m c) -> b m hw c'), m=self.num_heads)
+        # print(q.shape)
 
+        # reduction when reduction ratio of efficient self attention is > 1, i.e. for stages 1-3 as sr=[8,4,2,1]
         if self.sr_ratio > 1:
             x = rearrange(x, 'b (h w) c -> b c h w', h=h, w=w)
             x = self.sr(x)
             x = rearrange(x, 'b c h w -> b (h w) c')
             x = self.norm(x)
 
+        # create key and value by doubling dimensions and split them into two
         x = self.kv(x)
         x = rearrange(x, 'b d (a m c) -> a b m d c', a=2, m=self.num_heads)
         k, v = x[0], x[1] # x.unbind(0)
-
+        
+        # print(k.shape)
+        # print(v.shape)
+        
+        # matrix multiplication (dot product) of q and k; divide by 8 (scale = 0.125)
         attn = (q @ k.transpose(-2, -1)) * self.scale
         attn = attn.softmax(dim=-1)
-
+        
+        # print(attn.shape)
+        
         x = attn @ v
         x = rearrange(x, 'b m hw c -> b hw (m c)')
         x = self.proj(x)
-        attn_output = {'key' : k, 'query' : q, 'value' : v, 'attn' : attn}
+        attn_output = {'key' : k, 'query' : q, 'value' : v, 'attn' : attn, 'x': x}
         return x, attn_output
     
 
@@ -141,6 +156,7 @@ class mix_transformer_stage(nn.Module):
         stage_output['patch_embed_w'] = w # a
         stage_output['patch_embed_output'] = x # a
         
+        # aggregate all blocks in the stage; number of blocks equals depths
         for block in self.blocks:
             x, attn_output = block(x, h, w)  # attention_output added
                         
@@ -164,6 +180,7 @@ class mix_transformer(nn.Module):
             # Each Stage consists of following blocks :
             # Overlap patch embedding -> mix_transformer_block -> norm
             blocks = []
+            # mit_b3: (3, 4, 18, 3)
             for i in range(depths[stage_i]):
                 blocks.append(transformer_block(dim = embed_dims[stage_i],
                         num_heads= num_heads[stage_i], dropout_p=dropout_p,
