@@ -15,6 +15,7 @@ Dataset used: [ISPRS Benchmark on Semantic Labeling](https://www.isprs.org/educa
 |   |-- label_valid
 ```
  - with ground truth images in folders `/label` having the same name as the corresponding images in folders `/rgb`.
+ - Ideally also add folder `rgb_test` and `label_test` and put respective data in there by splitting all the data into train, validation and test data. 
 
 2. Install requirements (compare `/PALMA/requirements.txt` and modules loaded in `/PALMA/train_unet.sh`; respective requirements file will be added later).
 3. Train model with
