@@ -24,7 +24,7 @@ if __name__ == '__main__':
     parser.add_argument('--data_path', type=str, default='/scratch/tmp/j_sten07/data', help='path were the input data is stored')
     parser.add_argument('--output_path', type=str, default='/scratch/tmp/j_sten07/output', help='path to directory where the output should be stored')
     parser.add_argument('--model', choices=['unet', 'segformer'], default='unet', help="the model architecture that should be trained; choose from 'UNet' and 'segformer'")
-    parser.add_argument('--epochs', type=int, default=20, help='epochs the model should be trained')
+    parser.add_argument('--epochs', type=int, default=20, help='number of epochs the model should be trained')
     parser.add_argument('--loss_function', type=str, choices=['dice', 'jaccard'], default='jaccard')
     parser.add_argument('--lr', type=float, default=3e-4, help='maximum learning rate')
     parser.add_argument('--train_batch', type=int, default=4, help='batch size for training data')
