@@ -50,9 +50,12 @@ class efficient_self_attention(nn.Module):
     def __init__(self, attn_dim, num_heads, dropout_p, sr_ratio):
         super().__init__()
         assert attn_dim % num_heads == 0, f'expected attn_dim {attn_dim} to be a multiple of num_heads {num_heads}'
+        # (64, 128, 320, 512)
         self.attn_dim = attn_dim
+        # (1, 2, 5, 8)
         self.num_heads = num_heads
         self.dropout_p = dropout_p
+        # (8, 4, 2, 1)
         self.sr_ratio = sr_ratio
         # sequence reduction process; sr_ratio = [8,4,2,1] -> paper mentions squared values
         if sr_ratio > 1:
@@ -63,6 +66,7 @@ class efficient_self_attention(nn.Module):
         # Query - Key Dot product is scaled by root of head_dim
         self.q = nn.Linear(attn_dim, attn_dim, bias=True)
         self.kv = nn.Linear(attn_dim, attn_dim * 2, bias=True)
+        # leads to 0.125 = 1/8 every time
         self.scale = (attn_dim // num_heads) ** -0.5
 
         # Projecting concatenated outputs from 
@@ -71,27 +75,38 @@ class efficient_self_attention(nn.Module):
 
 
     def forward(self, x, h, w):
+        # create queries, i.e. apply linear transformation 
         q = self.q(x)
+        # print(q.shape)
         q = rearrange(q, ('b hw (m c) -> b m hw c'), m=self.num_heads)
+        # print(q.shape)
 
+        # reduction when reduction ratio of efficient self attention is > 1, i.e. for stages 1-3 as sr=[8,4,2,1]
         if self.sr_ratio > 1:
             x = rearrange(x, 'b (h w) c -> b c h w', h=h, w=w)
             x = self.sr(x)
             x = rearrange(x, 'b c h w -> b (h w) c')
             x = self.norm(x)
 
+        # create key and value by doubling dimensions and split them into two
         x = self.kv(x)
         x = rearrange(x, 'b d (a m c) -> a b m d c', a=2, m=self.num_heads)
         k, v = x[0], x[1] # x.unbind(0)
-
+        
+        # print(k.shape)
+        # print(v.shape)
+        
+        # matrix multiplication (dot product) of q and k; divide by 8 (scale = 0.125)
         attn = (q @ k.transpose(-2, -1)) * self.scale
         attn = attn.softmax(dim=-1)
-
+        
+        # print(attn.shape)
+        
         x = attn @ v
         x = rearrange(x, 'b m hw c -> b hw (m c)')
         x = self.proj(x)
-        x = F.dropout(x, p=self.dropout_p, training=self.training)
-        return x
+        attn_output = {'key' : k, 'query' : q, 'value' : v, 'attn' : attn, 'x': x}
+        return x, attn_output
     
 
 class transformer_block(nn.Module):
@@ -113,7 +128,7 @@ class transformer_block(nn.Module):
         # Norm -> self-attention
         skip = x
         x = self.norm1(x)
-        x = self.attn(x, h, w)
+        x, attn_output = self.attn(x, h, w)
         x = drop_path(x, drop_prob=self.drop_path_p, training=self.training)
         x = x + skip
 
@@ -123,7 +138,7 @@ class transformer_block(nn.Module):
         x = self.ffn(x, h, w)
         x = drop_path(x, drop_prob=self.drop_path_p, training=self.training)
         x = x + skip
-        return x
+        return x, attn_output
     
 
 class mix_transformer_stage(nn.Module):
@@ -134,12 +149,27 @@ class mix_transformer_stage(nn.Module):
         self.norm = norm
 
     def forward(self, x):
+        # patch embedding and store required data
+        stage_output  = {} # a 
+        stage_output['patch_embed_input'] = x # a
         x, h, w = self.patch_embed(x)
+        stage_output['patch_embed_h'] = h # a
+        stage_output['patch_embed_w'] = w # a
+        stage_output['patch_embed_output'] = x # a
+        
+        # aggregate all blocks in the stage; number of blocks equals depths
         for block in self.blocks:
-            x = block(x, h, w)
+            x, attn_output = block(x, h, w)  # attention_output added
+                        
         x = self.norm(x)
         x = rearrange(x, 'b (h w) c -> b c h w', h=h, w=w) # patch merging? -> no, just 'unflattening'?
-        return x
+        
+        # store last attention block data 
+        # in stages' output data
+        for k,v in attn_output.items():  # a
+            stage_output[k] = v  # a
+        del attn_output  # a
+        return x, stage_output # stage output added
     
 
 class mix_transformer(nn.Module):
@@ -151,6 +181,7 @@ class mix_transformer(nn.Module):
             # Each Stage consists of following blocks :
             # Overlap patch embedding -> mix_transformer_block -> norm
             blocks = []
+            # mit_b3: (3, 4, 18, 3)
             for i in range(depths[stage_i]):
                 blocks.append(transformer_block(dim = embed_dims[stage_i],
                         num_heads= num_heads[stage_i], dropout_p=dropout_p,
@@ -174,10 +205,17 @@ class mix_transformer(nn.Module):
 
     def forward(self, x):
         outputs = []
-        for stage in self.stages:
-            x = stage(x)
+        for i,stage in enumerate(self.stages):
+            x, _ = stage(x)
             outputs.append(x)
         return outputs
+    
+    def get_attn_outputs(self, x):
+        stage_outputs = []
+        for i,stage in enumerate(self.stages):
+            x, stage_data = stage(x)
+            stage_outputs.append(stage_data)
+        return stage_outputs
     
 
 class segformer_head(nn.Module):
@@ -222,15 +260,31 @@ class segformer_head(nn.Module):
     
 
 class segformer_mit_b3(nn.Module):    
-    def __init__(self, in_channels, num_classes):
+    def __init__(self, in_channels, num_classes, depths=(3, 4, 18, 3)):
         super().__init__()
         # Encoder block    
         self.backbone = mix_transformer(in_chans=in_channels, embed_dims=(64, 128, 320, 512), 
-                                    num_heads=(1, 2, 5, 8), depths=(3, 4, 18, 3),
+                                    num_heads=(1, 2, 5, 8), depths=depths,
                                     sr_ratios=(8, 4, 2, 1), dropout_p=0.0, drop_path_p=0.1)
         # decoder block
         self.decoder_head = segformer_head(in_channels=(64, 128, 320, 512), 
                                     num_classes=num_classes, embed_dim=256)
+        
+#         # init weights
+#         self.apply(self._init_weights)  # a
+        
+        
+#     def _init_weights(self, m):
+#         if isinstance(m, nn.Linear):
+#             trunc_normal_(m.weight, std=.02)
+#             if isinstance(m, nn.Linear) and m.bias is not None:
+#                 nn.init.constant_(m.bias, 0)
+#         elif isinstance(m, nn.LayerNorm):
+#             nn.init.constant_(m.bias, 0)
+#             nn.init.constant_(m.weight, 1.0)
+#         elif isinstance(m, nn.Conv2d):
+#             nn.init.kaiming_normal_(m.weight, mode="fan_out", nonlinearity="relu")
+    
 
     def forward(self, x):
         image_hw = x.shape[2:]
@@ -238,3 +292,12 @@ class segformer_mit_b3(nn.Module):
         x = self.decoder_head(x)
         x = F.interpolate(x, size=image_hw, mode='bilinear', align_corners=False)
         return x
+    
+    def get_attention_outputs(self, x):
+        return self.backbone.get_attn_outputs(x)
+    
+    def get_last_selfattention(self, x):
+        outputs = self.get_attention_outputs(x)
+        return outputs[-1].get('attn', None)
+    
+    
