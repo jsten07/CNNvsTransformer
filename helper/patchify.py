@@ -4,12 +4,12 @@ import os
 
 def make_patches(im_dir, out_dir, patch_size = 512, step = 500):
 
+    if not os.path.isdir(out_dir):
+        os.makedirs(out_dir)
+        
     # image_dataset = []  
     for path, subdirs, files in os.walk(im_dir):
         subdirs.sort()
-        print(path)  
-        print(subdirs)
-        print(files)
         dirname = path.split(os.path.sep)[-1]
         images = sorted(os.listdir(path))  #List of all image names in this subdirectory
         
@@ -25,11 +25,13 @@ def make_patches(im_dir, out_dir, patch_size = 512, step = 500):
                             x = image.shape[0]-patch_size
                         if not (y+patch_size < image.shape[1]):
                             y = image.shape[1]-patch_size
-                        tile = image[y:y+patch_size, x:x+patch_size]
                         
                         im_name = image_name[:-4]+'_'+str(x)+'_'+str(y)+'.tif'
+                        im_path = os.path.join(out_dir,im_name)
                         
-                        cv2.imwrite(os.path.join(out_dir,im_name), tile)
+                        if not os.path.isfile(im_path):
+                            tile = image[y:y+patch_size, x:x+patch_size]
+                            cv2.imwrite(im_path, tile)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
