@@ -1,5 +1,6 @@
 # basic imports
 import os
+import math
 from datetime import datetime
 import cv2
 import numpy as np
@@ -605,33 +606,53 @@ class Dataset(BaseDataset):
         return len(self.im_ids)
 
 
-def load_datasets(data_dir):
-    x_train_dir = os.path.join(data_dir, 'rgb')
-    y_train_dir = os.path.join(data_dir, 'label')
-
-    x_valid_dir = os.path.join(data_dir, 'rgb_valid')
-    y_valid_dir = os.path.join(data_dir, 'label_valid')
-
-    x_test_dir = os.path.join(data_dir, 'rgb_test')
-    y_test_dir = os.path.join(data_dir, 'label_test')
+def load_datasets(data_dir, random_split = False):
 
     CLASSES=['impervious', 'building', 'vegetation', 'tree', 'car', 'clutter']
+    
+    if random_split: 
+        x_train_dir = os.path.join(data_dir, 'rgb')
+        y_train_dir = os.path.join(data_dir, 'label')
+        
 
-    train_dataset = Dataset(
-        x_train_dir, 
-        y_train_dir, 
-        # augmentation=get_training_augmentation(), 
-        preprocessing=preprocess,
-        classes=CLASSES,
-    )
+        
+        training_dataset = Dataset(
+            x_train_dir, 
+            y_train_dir, 
+            # augmentation=get_training_augmentation(), 
+            preprocessing=preprocess,
+            classes=CLASSES,
+        )
 
-    valid_dataset = Dataset(
-        x_valid_dir, 
-        y_valid_dir, 
-        # augmentation=get_validation_augmentation(), 
-        preprocessing=preprocess,
-        classes=CLASSES,
-    )
+        generator = torch.Generator().manual_seed(42)
+        train_dataset, valid_dataset = torch.utils.data.random_split(training_dataset, [math.floor(0.75*len(training_dataset)), math.ceil(0.25*len(training_dataset))], generator=generator)
+        
+    else:
+        
+        x_train_dir = os.path.join(data_dir, 'rgb')
+        y_train_dir = os.path.join(data_dir, 'label')
+
+        x_valid_dir = os.path.join(data_dir, 'rgb_valid')
+        y_valid_dir = os.path.join(data_dir, 'label_valid')
+
+        train_dataset = Dataset(
+            x_train_dir, 
+            y_train_dir, 
+            # augmentation=get_training_augmentation(), 
+            preprocessing=preprocess,
+            classes=CLASSES,
+        )
+
+        valid_dataset = Dataset(
+            x_valid_dir, 
+            y_valid_dir, 
+            # augmentation=get_validation_augmentation(), 
+            preprocessing=preprocess,
+            classes=CLASSES,
+        )
+        
+    x_test_dir = os.path.join(data_dir, 'rgb_test')
+    y_test_dir = os.path.join(data_dir, 'label_test')
 
     test_dataset = Dataset(
         x_test_dir, 

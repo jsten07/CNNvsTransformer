@@ -21,10 +21,11 @@ import segmentation_models_pytorch as smp
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--name', type=str, default=None, help='name of the model as it should be saved')
-    parser.add_argument('--data_path', type=str, default='/scratch/tmp/j_sten07/data', help='path were the input data is stored')
+    parser.add_argument('--data_path', type=str, default='/scratch/tmp/j_sten07/data', help='path were the input data is stored; expects subfolders /rgb, /rgb_test, /label, /lable_test and depending on the random split argument also /rgb_valid, /label_valid')
+    parser.add_argument('--random_split', type=bool, default=False, help='if true, no separate valid folders are expected but train and validation in one folder, that are split randomly')
     parser.add_argument('--output_path', type=str, default='/scratch/tmp/j_sten07/output', help='path to directory where the output should be stored')
     parser.add_argument('--model', choices=['unet', 'segformer'], default='unet', help="the model architecture that should be trained; choose from 'UNet' and 'segformer'")
-    parser.add_argument('--epochs', type=int, default=20, help='number of epochs the model should be trained')
+    parser.add_argument('--epochs', type=int, default=20, help='epochs the model should be trained')
     parser.add_argument('--loss_function', type=str, choices=['dice', 'jaccard'], default='jaccard')
     parser.add_argument('--lr', type=float, default=3e-4, help='maximum learning rate')
     parser.add_argument('--train_batch', type=int, default=4, help='batch size for training data')
@@ -36,7 +37,7 @@ if __name__ == '__main__':
     opt = parser.parse_args()
 
     # load dataset and create data loader
-    train_dataset, val_dataset, test_dataset = load_datasets(opt.data_path)
+    train_dataset, val_dataset, test_dataset = load_datasets(opt.data_path, random_split = opt.random_split)
     train_loader, val_loader, test_loader = make_loader(train_dataset, val_dataset, test_dataset, opt.train_batch, opt.val_batch, opt.train_worker, opt.val_worker)
 
     # TODO: check if empty_cache() is necessary 
