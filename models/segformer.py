@@ -16,7 +16,7 @@ class overlap_patch_embed(nn.Module):
         self.norm = nn.LayerNorm(embed_dim)
 
     def forward(self, x):
-        x = self.proj(x)
+        x = self.proj(x) # overlapping convolution
         _, _, h, w = x.shape
         x = rearrange(x, 'b c h w -> b (h w) c')
         x = self.norm(x)
@@ -57,6 +57,7 @@ class efficient_self_attention(nn.Module):
         self.dropout_p = dropout_p
         # (8, 4, 2, 1)
         self.sr_ratio = sr_ratio
+        # sequence reduction process; sr_ratio = [8,4,2,1] -> paper mentions squared values
         if sr_ratio > 1:
             self.sr = nn.Conv2d(attn_dim, attn_dim, kernel_size=sr_ratio, stride=sr_ratio)
             self.norm = nn.LayerNorm(attn_dim)
@@ -161,7 +162,7 @@ class mix_transformer_stage(nn.Module):
             x, attn_output = block(x, h, w)  # attention_output added
                         
         x = self.norm(x)
-        x = rearrange(x, 'b (h w) c -> b c h w', h=h, w=w)
+        x = rearrange(x, 'b (h w) c -> b c h w', h=h, w=w) # patch merging? -> no, just 'unflattening'?
         
         # store last attention block data 
         # in stages' output data
