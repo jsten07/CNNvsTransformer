@@ -1,7 +1,7 @@
 #!/bin/bash
 
 #SBATCH --nodes=1
-#SBATCH --tasks-per-node=4
+#SBATCH --tasks-per-node=2
 #SBATCH --partition=gpuv100
 #SBATCH --gres=gpu:1
 #SBATCH --time=02:00:00
@@ -23,4 +23,5 @@ module load PyTorch
 pip install --user -r requirements.txt
 
 # run your application
-python3 ../train.py --model segformer --data_path /scratch/tmp/j_sten07/data/Potsdam/patches/500px --epochs 30 --train_batch 8 --train_worker 4 --val_batch 8 --val_worker 4
+python3 ../train.py --model segformer --data_path /scratch/tmp/j_sten07/data/Potsdam/patches/256px/test_14_15 --name segformer_100ep_256px_test-14-15_randomsplit_lr1e-5 --epochs 100 --train_batch 8 --train_worker 4 --val_batch 8 --val_worker 4 --random_split True --lr 1e-5
+# python3 ../train.py --model segformer --data_path /scratch/tmp/j_sten07/data/FloodNet/1024px --name segformer_100ep_floodnet-1024px_randomsplit_lr4e-5_jaccard --epochs 100 --train_batch 8 --train_worker 4 --val_batch 8 --val_worker 4 --random_split True --lr 4e-5
