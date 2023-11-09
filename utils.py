@@ -11,11 +11,13 @@ import matplotlib.pyplot as plt
 from matplotlib import colors
 from matplotlib.patches import Patch
 from collections import namedtuple
+from PIL import Image
 
 # DL library imports
 import torch
 import torch.nn as nn
 from torchvision import transforms
+# import torchvision.transforms.v2 as transforms
 from torch.utils.data import Dataset, DataLoader
 from torch.optim.lr_scheduler import _LRScheduler
 
@@ -27,8 +29,23 @@ from torch.optim.lr_scheduler import _LRScheduler
 # Convert to torch tensor and normalize images using Imagenet values
 preprocess = transforms.Compose([
                     transforms.ToTensor(),
+                    # transforms.Normalize(mean=(0.485, 0.56, 0.406), std=(0.229, 0.224, 0.225))
+                ])
+
+normalize = transforms.Compose([
+                    # transforms.ToTensor(),
                     transforms.Normalize(mean=(0.485, 0.56, 0.406), std=(0.229, 0.224, 0.225))
                 ])
+
+augmentation = torch.nn.Sequential(
+    # transforms.ToTensor(),
+    transforms.ColorJitter(
+        brightness=0.5, 
+        contrast=1, 
+        saturation=0.1, 
+        hue=0.5
+    )
+)
 
 # when using torch datasets we defined earlier, the output image
 # is normalized. So we're defining an inverse transformation to 
@@ -36,22 +53,6 @@ preprocess = transforms.Compose([
 inverse_transform = transforms.Compose([
         transforms.Normalize((-0.485/0.229, -0.456/0.224, -0.406/0.225), (1/0.229, 1/0.224, 1/0.225))
     ])
-
-
-# Constants for Standard color mapping
-# reference : https://github.com/bdd100k/bdd100k/blob/master/bdd100k/label/label.py
-
-Label = namedtuple( "Label", [ "name", "train_id", "color"])
-drivables = [ 
-    Label('impervious', 0, (255, 255, 255)), 
-    Label('building', 1, (0, 0, 255)), 
-    Label('vegetation', 2, (0, 255, 255)), 
-    Label('tree', 3, (0, 255, 0)), 
-    Label('car', 4, (255, 255, 0)), 
-    Label('clutter', 5, (255, 0, 0))
-]
-train_id_to_color = [c.color for c in drivables if (c.train_id != -1 and c.train_id != 255)]
-train_id_to_color = np.array(train_id_to_color)
 
 
 
@@ -410,23 +411,72 @@ def train_validate_model(model, num_epochs, model_name, criterion, optimizer,
 ###################################
 # FUNCTION TO VISUALIZE MODEL PREDICTIONS
 ###################################
-legend_elements = [
-    Patch(facecolor=train_id_to_color[0]/255, label=drivables[0].name),  
-    Patch(facecolor=train_id_to_color[1]/255, label=drivables[1].name),
-    Patch(facecolor=train_id_to_color[2]/255, label=drivables[2].name),
-    Patch(facecolor=train_id_to_color[3]/255, label=drivables[3].name),
-    Patch(facecolor=train_id_to_color[4]/255, label=drivables[4].name),
-    Patch(facecolor=train_id_to_color[5]/255, label=drivables[5].name),
-                  ]
+
+# Constants for Standard color mapping
+# reference : https://github.com/bdd100k/bdd100k/blob/master/bdd100k/label/label.py
+
+
+def train_id_to_color(classes):
+    Label = namedtuple( "Label", [ "name", "train_id", "color"])
+    if len(classes) == 6:
+        drivables = [ 
+            Label(classes[0], 0, (255, 255, 255)), 
+            Label(classes[1], 1, (0, 0, 255)), 
+            Label(classes[2], 2, (0, 255, 255)), 
+            Label(classes[3], 3, (0, 255, 0)), 
+            Label(classes[4], 4, (255, 255, 0)), 
+            Label(classes[5], 5, (255, 0, 0))
+        ]
+    elif len(classes) == 10:
+        drivables = [ 
+            Label(classes[0], 0, (0, 0, 0)), 
+            Label(classes[1], 1, (255, 0, 0)), 
+            Label(classes[2], 2, (200, 90, 90)), 
+            Label(classes[3], 3, (130, 130, 0)), 
+            Label(classes[4], 4, (150, 150, 150)), 
+            Label(classes[5], 5, (0, 255, 255)),
+            Label(classes[6], 6, (0, 0, 255)), 
+            Label(classes[7], 7, (255, 0, 255)), 
+            Label(classes[8], 8, (250, 250, 0)), 
+            Label(classes[9], 9, (0, 255, 0)) 
+        ]
+    else:
+        return
+    
+    id_to_color = [c.color for c in drivables if (c.train_id != -1 and c.train_id != 255)]
+    id_to_color = np.array(id_to_color)
+    
+    legend_elements = []
+    for i, c in enumerate(classes):
+        legend_elements.append(Patch(facecolor=id_to_color[i]/255, label=c))
+        
+    return id_to_color, legend_elements
+
+
+# legend_elements = [
+#     Patch(facecolor=train_id_to_color[0]/255, label=drivables[0].name),  
+#     Patch(facecolor=train_id_to_color[1]/255, label=drivables[1].name),
+#     Patch(facecolor=train_id_to_color[2]/255, label=drivables[2].name),
+#     Patch(facecolor=train_id_to_color[3]/255, label=drivables[3].name),
+#     Patch(facecolor=train_id_to_color[4]/255, label=drivables[4].name),
+#     Patch(facecolor=train_id_to_color[5]/255, label=drivables[5].name),
+#                   ]
 
 diff_legend = [
     Patch(facecolor='green', label='true'), 
     Patch(facecolor='red', label='false'), 
 ]
 
-def visualize_predictions(model : torch.nn.Module, dataSet : Dataset,  
-        axes, device :torch.device, numTestSamples : int,
-        id_to_color : np.ndarray = train_id_to_color, seed : int = None):
+def visualize_predictions(model : torch.nn.Module, 
+                          dataSet : Dataset,  
+                          axes, 
+                          device :torch.device, 
+                          numTestSamples : int,
+                          # id_to_color : np.ndarray = train_id_to_color, 
+                          seed : int = None, 
+                          normalization = True, 
+                          # rgb = True, 
+                          classes=None):
     """Function visualizes predictions of input model on samples from
     cityscapes dataset provided
 
@@ -448,12 +498,18 @@ def visualize_predictions(model : torch.nn.Module, dataSet : Dataset,
     testSamples = np.random.choice(len(dataSet), numTestSamples).tolist()
     # _, axes = plt.subplots(numTestSamples, 3, figsize=(3*6, numTestSamples * 4))
     
+    id_to_color, legend_elements = train_id_to_color(classes)
+    id_to_rg = np.array([[255, 0, 0], [0, 150, 0]])
+    
     for i, sampleID in enumerate(testSamples):
         inputImage, gt = dataSet[sampleID]
 
         # input rgb image   
         inputImage = inputImage.to(device)
-        landscape = inverse_transform(inputImage).permute(1, 2, 0).cpu().detach().numpy()
+        if normalization: 
+            landscape = inverse_transform(inputImage).permute(1, 2, 0).cpu().detach().numpy()
+        else: 
+            landscape = inputImage.permute(1, 2, 0).cpu().detach().numpy()
         axes[i, 0].imshow(landscape)
         axes[i, 0].set_title(dataSet.get_name(sampleID))
 
@@ -470,10 +526,12 @@ def visualize_predictions(model : torch.nn.Module, dataSet : Dataset,
         axes[i, 2].set_title("Predicted Label")
 
         # difference groundtruth and prediction
-        diff = label_class != label_class_predicted
-        axes[i, 3].imshow(diff, cmap = rgcmap)
+        diff = label_class == label_class_predicted
+        axes[i, 3].imshow(id_to_rg[diff*1])#, cmap = rgcmap) # make int to map 0 and 1 to cmap, otherwise a 
         axes[i, 3].legend(handles=diff_legend)
         axes[i, 3].set_title("Difference")
+        # print(diff*1)
+        # issue: if the whole image is predicted wrong, it is visualized green (probably because imshow simply takes first color from cmap?)
 
     plt.show()
 
@@ -511,23 +569,18 @@ def rgb_to_2D_label(label):
     clutter = [255, 0, 0]
 
     label_seg = np.zeros(label.shape,dtype=np.uint8)
-    label_seg [np.all(label == impervious,axis=-1)] = 0
+    label_seg [np.all(label==impervious,axis=-1)] = 0
     label_seg [np.all(label==building,axis=-1)] = 1
     label_seg [np.all(label==vegetation,axis=-1)] = 2
     label_seg [np.all(label==tree,axis=-1)] = 3
     label_seg [np.all(label==car,axis=-1)] = 4
     label_seg [np.all(label==clutter,axis=-1)] = 5
-    
-    label_seg = label_seg[:,:,0]  #Just take the first channel, no need for all 3 channels
+
+    # label_seg = label_seg[:,:,0]  #Just take the first channel, no need for all 3 channels
     
     return label_seg
 
-preprocess = transforms.Compose([
-                    transforms.ToTensor(),
-                    transforms.Normalize(mean=(0.485, 0.56, 0.406), std=(0.229, 0.224, 0.225))
-                ])
 
-# %%
 
 class Dataset(BaseDataset):
     """Read images, apply augmentation and preprocessing transformations.
@@ -543,7 +596,7 @@ class Dataset(BaseDataset):
     
     """
     
-    CLASSES = ['impervious', 'building', 'vegetation', 'tree', 'car', 'clutter']
+    # CLASSES = ['impervious', 'building', 'vegetation', 'tree', 'car', 'clutter']
     
     def __init__(
             self, 
@@ -551,15 +604,16 @@ class Dataset(BaseDataset):
             masks_dir, 
             classes=None, 
             augmentation=None, 
-            preprocessing=None,
+            normalization=False,
             patch_size=512
     ):
-        self.im_ids = os.listdir(images_dir) 
+        self.im_ids = sorted(os.listdir(images_dir))
         # self.im_ids = list(filter(lambda x: x.endswith('11_RGB.tif'), self.im_ids))
         self.images_fps = [os.path.join(images_dir, image_id) for image_id in self.im_ids]
-        self.mask_ids = os.listdir(masks_dir) 
+        self.mask_ids = sorted(os.listdir(masks_dir))
         # self.mask_ids = list(filter(lambda x: x.endswith('11_label.tif'), self.mask_ids))
         self.masks_fps = [os.path.join(masks_dir, mask_id) for mask_id in self.mask_ids]
+        self.CLASSES = classes
         
         self.dims = (patch_size, patch_size)
         
@@ -567,18 +621,27 @@ class Dataset(BaseDataset):
         self.class_values = [self.CLASSES.index(cls.lower()) for cls in classes]
         
         self.augmentation = augmentation
-        self.preprocessing = preprocessing
+        self.normalization = normalization
     
     def __getitem__(self, i):
         
         # read data
+        # print(self.images_fps[i])
+        # print(self.masks_fps[i])
         image = cv2.imread(self.images_fps[i])
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         image = cv2.resize(image, self.dims, interpolation=cv2.INTER_NEAREST)
         mask = cv2.imread(self.masks_fps[i])
         mask = cv2.cvtColor(mask, cv2.COLOR_BGR2RGB) # cv2 reads image as BGR, change to RGB
         mask = cv2.resize(mask, self.dims, interpolation=cv2.INTER_NEAREST)
-        mask = rgb_to_2D_label(mask)
+        # (print(np.unique(mask)))
+        if len(self.CLASSES) == 6:
+            mask = rgb_to_2D_label(mask)
+        mask = mask[:,:,0]
+        
+        # else:
+        #     mask = mask[:,:,0]
+        
         # print(self.images_fps[i])
         
         # # extract certain classes from mask (e.g. cars)
@@ -589,13 +652,16 @@ class Dataset(BaseDataset):
         mask = torch.from_numpy(mask).long()
         
         # # apply augmentations
-        # if self.augmentation:
-        #     sample = self.augmentation(image=image, mask=mask)
-        #     image, mask = sample['image'], sample['mask']
+        if self.augmentation:
+            # sample = self.augmentation(image=image, mask=mask)
+            # image, mask = sample['image'], sample['mask']
+            image = Image.fromarray(image)
+            image = self.augmentation(image)
         
         # apply preprocessing
-        if self.preprocessing:
-            image = self.preprocessing(image)
+        image = preprocess(image)
+        if self.normalization:
+            image = normalize(image)
             
         return image, mask
     
@@ -606,22 +672,41 @@ class Dataset(BaseDataset):
         return len(self.im_ids)
 
 
-def load_datasets(data_dir, random_split = False):
+def load_datasets(data_dir, random_split = False, augmentation = None, normalize = True, classes='potsdam', patch_size=512, only_test=False):
 
-    CLASSES=['impervious', 'building', 'vegetation', 'tree', 'car', 'clutter']
+    if classes == 'potsdam':
+        CLASSES=['impervious', 'building', 'vegetation', 'tree', 'car', 'clutter']
+    if classes == 'floodnet':
+        CLASSES = ['background', 'building-flooded', 'building-non-flooded', 'road-flooded', 'road-non-flooded', 'water', 'tree', 'vehicle', 'pool', 'grass']
     
+    x_test_dir = os.path.join(data_dir, 'rgb_test')
+    y_test_dir = os.path.join(data_dir, 'label_test')
+
+    test_dataset = Dataset(
+        x_test_dir, 
+        y_test_dir, 
+        # augmentation=get_validation_augmentation(), 
+        augmentation=augmentation, 
+        normalization=normalize,
+        classes=CLASSES,
+        patch_size=patch_size
+    )
+    
+    if only_test:
+        return test_dataset        
+    
+    # use train directory as input for training and validation data and split them randomly in two subsets
     if random_split: 
         x_train_dir = os.path.join(data_dir, 'rgb')
         y_train_dir = os.path.join(data_dir, 'label')
         
-
-        
         training_dataset = Dataset(
             x_train_dir, 
             y_train_dir, 
-            # augmentation=get_training_augmentation(), 
-            preprocessing=preprocess,
+            augmentation=augmentation, 
+            normalization=normalize,
             classes=CLASSES,
+            patch_size=patch_size
         )
 
         generator = torch.Generator().manual_seed(42)
@@ -639,28 +724,22 @@ def load_datasets(data_dir, random_split = False):
             x_train_dir, 
             y_train_dir, 
             # augmentation=get_training_augmentation(), 
-            preprocessing=preprocess,
+            augmentation=augmentation, 
+            normalization=normalize,
             classes=CLASSES,
+            patch_size=patch_size
         )
 
         valid_dataset = Dataset(
             x_valid_dir, 
             y_valid_dir, 
             # augmentation=get_validation_augmentation(), 
-            preprocessing=preprocess,
+            augmentation=augmentation, 
+            normalization=normalize,
             classes=CLASSES,
+            patch_size=patch_size
         )
         
-    x_test_dir = os.path.join(data_dir, 'rgb_test')
-    y_test_dir = os.path.join(data_dir, 'label_test')
-
-    test_dataset = Dataset(
-        x_test_dir, 
-        y_test_dir, 
-        # augmentation=get_validation_augmentation(), 
-        preprocessing=preprocess,
-        classes=CLASSES,
-    )
 
     return train_dataset, valid_dataset, test_dataset
 
