@@ -496,7 +496,7 @@ def visualize_predictions(model : torch.nn.Module,
                           numTestSamples : int,
                           # id_to_color : np.ndarray = train_id_to_color, 
                           seed : int = None, 
-                          norm_dataset = None, 
+                          norm_dataset = 'own', 
                           # rgb = True, 
                           classes=None):
     """Function visualizes predictions of input model on samples from
@@ -555,6 +555,93 @@ def visualize_predictions(model : torch.nn.Module,
         axes[i, 3].set_title("Difference")
         # print(diff*1)
         # issue: if the whole image is predicted wrong, it is visualized green (probably because imshow simply takes first color from cmap?)
+
+    plt.show()
+    
+    
+
+def compare_models_onOneImage(model1 : torch.nn.Module, 
+                              model2 : torch.nn.Module, 
+                              dataset: Dataset,
+                              im_name : str,  
+                              device :torch.device, 
+                              normalization = True, 
+                              classes=None,
+                              norm_dataset='own',
+                              model1_label = 'U-Net',
+                              model2_label = 'SegFormer',
+                              plot_title = None
+                             ):
+    """Function visualizes predictions of input model on samples from
+    cityscapes dataset provided
+
+    Args:
+        model (torch.nn.Module): model whose output we're to visualize
+        dataSet (Dataset): dataset to take samples from
+        device (torch.device): compute device as in GPU, CPU etc
+        numTestSamples (int): number of samples to plot
+        id_to_color (np.ndarray) : array to map class to colormap
+    """
+    _, axes = plt.subplots(2, 3, figsize=(4*5, 3 * 3))
+    
+    if plot_title:
+        _.suptitle(plot_title, fontsize=20)
+    
+    model1.to(device=device)
+    model1.eval()
+    
+    model2.to(device=device)
+    model2.eval()
+    
+    #################
+    # predictions on random samples
+    # testSamples = np.random.choice(len(dataSet), numTestSamples).tolist()
+    imId = dataset.get_id_by_name(im_name)
+    inputImage, gt = dataset[imId]
+    # _, axes = plt.subplots(numTestSamples, 3, figsize=(3*6, numTestSamples * 4))
+    
+    id_to_color, legend_elements = train_id_to_color(classes)
+    id_to_rg = np.array([[255, 0, 0], [0, 150, 0]])
+
+    # input rgb image   
+    inputImage = inputImage.to(device)
+    if norm_dataset: 
+        inv_norm = inverse_transform(norm_dataset)
+        landscape = inv_norm(inputImage).permute(1, 2, 0).cpu().detach().numpy()
+    else: 
+        landscape = inputImage.permute(1, 2, 0).cpu().detach().numpy()
+    axes[0, 0].imshow(landscape)
+    axes[0, 0].set_title(im_name)
+
+    # groundtruth label image
+    label_class = gt.cpu().detach().numpy()
+    axes[1, 0].imshow(id_to_color[label_class])
+    axes[1, 0].set_title("Groundtruth Label")
+
+    # predicted label image
+    y_pred1 = torch.argmax(model1(inputImage.unsqueeze(0)), dim=1).squeeze(0)
+    label_class_predicted1 = y_pred1.cpu().detach().numpy()    
+    axes[0, 1].imshow(id_to_color[label_class_predicted1])
+    axes[0, 1].set_title("Prediction "+model1_label)
+
+    # difference groundtruth and prediction
+    diff = label_class == label_class_predicted1
+    axes[0, 2].imshow(id_to_rg[diff*1])#, cmap = rgcmap) # make int to map 0 and 1 to cmap, otherwise a 
+    axes[0, 2].legend(handles=diff_legend)
+    axes[0, 2].set_title("Difference")
+    
+    # predicted label image
+    y_pred2 = torch.argmax(model2(inputImage.unsqueeze(0)), dim=1).squeeze(0)
+    label_class_predicted2 = y_pred2.cpu().detach().numpy()    
+    axes[1, 1].imshow(id_to_color[label_class_predicted2])
+    axes[1, 1].legend(handles=legend_elements, loc = 'upper left', bbox_to_anchor=(-0.6, 1.4))
+    axes[1, 1].set_title("Prediction "+model2_label)
+
+    # difference groundtruth and prediction
+    diff = label_class == label_class_predicted2
+    axes[1, 2].imshow(id_to_rg[diff*1])#, cmap = rgcmap) # make int to map 0 and 1 to cmap, otherwise a 
+    axes[1, 2].legend(handles=diff_legend)
+    axes[1, 2].set_title("Difference")
 
     plt.show()
 
