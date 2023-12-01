@@ -27,6 +27,7 @@ if __name__ == '__main__':
     parser.add_argument('--random_split', type=bool, default=False, help='if true, no separate valid folders are expected but train and validation in one folder, that are split randomly')
     parser.add_argument('--augment', type=bool, default=False)
     parser.add_argument('--normalize', type=bool, default=True)
+    parser.add_argument('--norm_dataset', choices=['potsdam', 'potsdam_irrg', 'floodnet', 'vaihingen', 'imagenet', None], default=None)
     parser.add_argument('--output_path', type=str, default='/scratch/tmp/j_sten07/output', help='path to directory where the output should be stored')
     parser.add_argument('--model', choices=['unet', 'segformer'], default='unet', help="the model architecture that should be trained; choose from 'UNet' and 'segformer'")
     parser.add_argument('--epochs', type=int, default=20, help='epochs the model should be trained')
@@ -49,7 +50,7 @@ if __name__ == '__main__':
         augment = None
     
     # load dataset and create data loader
-    train_dataset, val_dataset, test_dataset = load_datasets(opt.data_path, random_split = opt.random_split, normalize = opt.normalize, augmentation = augment, classes = opt.dataset, patch_size=opt.patch_size)
+    train_dataset, val_dataset, test_dataset = load_datasets(opt.data_path, random_split = opt.random_split, normalize = opt.normalize, augmentation = augment, classes = opt.dataset, patch_size=opt.patch_size, dataset=opt.norm_dataset)
     train_loader, val_loader, test_loader = make_loader(train_dataset, val_dataset, test_dataset, opt.train_batch, opt.val_batch, opt.train_worker, opt.val_worker)
 
     # TODO: check if empty_cache() is necessary 
@@ -78,7 +79,7 @@ if __name__ == '__main__':
         for i in range(len(train_dataset)):
             class_count += torch.flatten(train_dataset[i][1]).bincount(minlength=NUM_CLASSES)
             weights = (1/class_count).to(device)
-            # weights = (weights / weights.sum()).to(device)
+            weights = (weights / weights.sum()).to(device)
         criterion = torch.nn.CrossEntropyLoss(weight=weights)
 
 

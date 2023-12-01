@@ -32,9 +32,22 @@ preprocess = transforms.Compose([
                     # transforms.Normalize(mean=(0.485, 0.56, 0.406), std=(0.229, 0.224, 0.225))
                 ])
 
-normalize = transforms.Compose([
-                    # transforms.ToTensor(),
-                    transforms.Normalize(mean=(0.485, 0.56, 0.406), std=(0.229, 0.224, 0.225))
+norms = {
+    'imagenet': {'mean':(0.485, 0.456, 0.406), 'std':(0.229, 0.224, 0.225)},
+    'potsdam': {'mean':(0.349, 0.371, 0.347), 'std':(0.1196, 0.1164, 0.1197)},
+    'potsdam_irrg': {'mean':(0.3823, 0.3625, 0.3364), 'std':(0.1172, 0.1167, 0.1203)},
+    'floodnet': {'mean':(0.4159, 0.4499, 0.3466), 'std':(0.1297, 0.1197, 0.1304)},
+    'vaihingen': {'mean':(0.4731, 0.3206, 0.3182), 'std':(0.1970, 0.1306, 0.1276)},
+}
+
+def normalize_images(dataset):
+    if dataset in norms.keys():
+        return transforms.Compose([
+                    transforms.Normalize(mean=np.array(norms[dataset]['mean']), std=np.array(norms[dataset]['std'])) # Image Net mean and std
+                ])
+    else:
+        return transforms.Compose([
+                    transforms.Normalize(mean=(0.485, 0.56, 0.406), std=(0.229, 0.224, 0.225)) # Image Net mean and std
                 ])
 
 augmentation = torch.nn.Sequential(
@@ -50,8 +63,14 @@ augmentation = torch.nn.Sequential(
 # when using torch datasets we defined earlier, the output image
 # is normalized. So we're defining an inverse transformation to 
 # transform to normal RGB format
-inverse_transform = transforms.Compose([
-        transforms.Normalize((-0.485/0.229, -0.456/0.224, -0.406/0.225), (1/0.229, 1/0.224, 1/0.225))
+def inverse_transform(dataset):
+    if dataset in norms.keys():
+        return transforms.Compose([
+            transforms.Normalize(-np.array(norms[dataset]['mean'])/np.array(norms[dataset]['std']), 1/np.array(norms[dataset]['std']))
+    ])
+    else:
+        return transforms.Compose([
+            transforms.Normalize((-0.485/0.229, -0.56/0.224, -0.406/0.225), (1/0.229, 1/0.224, 1/0.225))
     ])
 
 
@@ -243,6 +262,9 @@ def evaluate_model(model, dataloader, criterion, metric_class, num_classes, devi
 
             # update batch metric information            
             metric_object.update(y_preds.cpu().detach(), labels.cpu().detach())
+            
+    print(len(dataloader))
+    print(total_loss)
 
     evaluation_loss = total_loss / len(dataloader)
     evaluation_metric = metric_object.compute()
@@ -474,7 +496,7 @@ def visualize_predictions(model : torch.nn.Module,
                           numTestSamples : int,
                           # id_to_color : np.ndarray = train_id_to_color, 
                           seed : int = None, 
-                          normalization = True, 
+                          norm_dataset = None, 
                           # rgb = True, 
                           classes=None):
     """Function visualizes predictions of input model on samples from
@@ -506,8 +528,9 @@ def visualize_predictions(model : torch.nn.Module,
 
         # input rgb image   
         inputImage = inputImage.to(device)
-        if normalization: 
-            landscape = inverse_transform(inputImage).permute(1, 2, 0).cpu().detach().numpy()
+        if norm_dataset: 
+            inv_norm = inverse_transform(norm_dataset)
+            landscape = inv_norm(inputImage).permute(1, 2, 0).cpu().detach().numpy()
         else: 
             landscape = inputImage.permute(1, 2, 0).cpu().detach().numpy()
         axes[i, 0].imshow(landscape)
@@ -605,7 +628,8 @@ class Dataset(BaseDataset):
             classes=None, 
             augmentation=None, 
             normalization=False,
-            patch_size=512
+            patch_size=512,
+            dataset=None
     ):
         self.im_ids = sorted(os.listdir(images_dir))
         # self.im_ids = list(filter(lambda x: x.endswith('11_RGB.tif'), self.im_ids))
@@ -622,6 +646,9 @@ class Dataset(BaseDataset):
         
         self.augmentation = augmentation
         self.normalization = normalization
+        if normalization:
+            self.normalize = normalize_images(dataset)
+            
     
     def __getitem__(self, i):
         
@@ -661,18 +688,24 @@ class Dataset(BaseDataset):
         # apply preprocessing
         image = preprocess(image)
         if self.normalization:
-            image = normalize(image)
+            image = self.normalize(image)
             
         return image, mask
     
     def get_name(self, i):
         return self.im_ids[i]
+    
+    def get_id_by_name(self, im_name):
+        for i, name in enumerate(self.im_ids):    
+            if name == im_name:
+                return i
+        return 
         
     def __len__(self):
         return len(self.im_ids)
 
 
-def load_datasets(data_dir, random_split = False, augmentation = None, normalize = True, classes='potsdam', patch_size=512, only_test=False):
+def load_datasets(data_dir, random_split = False, augmentation = None, normalize = True, classes='potsdam', patch_size=512, only_test=False, dataset='potsdam'):
 
     if classes == 'potsdam':
         CLASSES=['impervious', 'building', 'vegetation', 'tree', 'car', 'clutter']
@@ -689,7 +722,8 @@ def load_datasets(data_dir, random_split = False, augmentation = None, normalize
         augmentation=augmentation, 
         normalization=normalize,
         classes=CLASSES,
-        patch_size=patch_size
+        patch_size=patch_size,
+        dataset=dataset
     )
     
     if only_test:
@@ -706,7 +740,8 @@ def load_datasets(data_dir, random_split = False, augmentation = None, normalize
             augmentation=augmentation, 
             normalization=normalize,
             classes=CLASSES,
-            patch_size=patch_size
+            patch_size=patch_size,
+            dataset=dataset
         )
 
         generator = torch.Generator().manual_seed(42)
@@ -727,7 +762,8 @@ def load_datasets(data_dir, random_split = False, augmentation = None, normalize
             augmentation=augmentation, 
             normalization=normalize,
             classes=CLASSES,
-            patch_size=patch_size
+            patch_size=patch_size,
+            dataset=dataset
         )
 
         valid_dataset = Dataset(
@@ -737,7 +773,8 @@ def load_datasets(data_dir, random_split = False, augmentation = None, normalize
             augmentation=augmentation, 
             normalization=normalize,
             classes=CLASSES,
-            patch_size=patch_size
+            patch_size=patch_size,
+            dataset=dataset
         )
         
 
