@@ -652,13 +652,6 @@ def compare_models_onOneImage(model1 : torch.nn.Module,
 
 
 # basic imports
-import numpy as np
-import os
-
-import cv2
-
-import torch
-from torchvision import transforms
 from torch.utils.data import DataLoader
 from torch.utils.data import Dataset as BaseDataset
 
