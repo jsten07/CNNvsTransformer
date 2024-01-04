@@ -3,6 +3,9 @@ import os
 import argparse
 
 def subset_patches(im_dir, out_dir, patch_name):
+
+    if not os.path.exists(out_dir):
+        os.makedirs(out_dir)
     
     for path, subdirs, files in os.walk(im_dir):
         # dirname = path.split(os.path.sep)[-1]
@@ -25,3 +28,4 @@ if __name__ == '__main__':
     opt = parser.parse_args()
 
     subset_patches(opt.in_dir, opt.out_dir, opt.patch_name)
+    
