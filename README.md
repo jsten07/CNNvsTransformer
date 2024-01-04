@@ -1,3 +1,5 @@
+[![DOI](https://zenodo.org/badge/671438661.svg)](https://zenodo.org/doi/10.5281/zenodo.10460007)
+
 # CNNvsTransformer: Comparing CNN- and Transformer-Based Deep Learning Models for Semantic Segmentation of Remote Sensing Images
 Master Thesis at the Institute for Geoinformatics, University of Münster, Germany.
 
