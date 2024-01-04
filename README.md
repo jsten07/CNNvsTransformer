@@ -27,7 +27,7 @@ Further documentation will be added soon.
 ```
 2. If you use the PALMA cluster, just adapt and run one of `\PALMA\train_unet.sh` or `\PALMA\train_segformer.sh` and you are done
 3. Otherwise: Install requirements (see `\PALMA\requirements.txt` and modules in `\PALMA\train_unet.sh`) 
-4. Run `train.py` by
+4. Look at possible parameters in `train.py` and run the following line with respective adjustments:
 ```
 python3 train.py --data_path /your/path/to/folder/data --name ./weights
 ```
