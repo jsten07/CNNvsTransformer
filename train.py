@@ -29,7 +29,7 @@ if __name__ == '__main__':
     parser.add_argument('--normalize', type=bool, default=True)
     parser.add_argument('--norm_dataset', choices=['potsdam', 'potsdam_irrg', 'floodnet', 'vaihingen', 'imagenet', None], default=None)
     parser.add_argument('--output_path', type=str, default='/scratch/tmp/j_sten07/output', help='path to directory where the output should be stored')
-    parser.add_argument('--model', choices=['unet', 'segformer'], default='unet', help="the model architecture that should be trained; choose from 'UNet' and 'segformer'")
+    parser.add_argument('--model', choices=['unet', 'segformer', 'segformer-b5'], default='unet', help="the model architecture that should be trained; choose from 'UNet' and 'segformer'")
     parser.add_argument('--epochs', type=int, default=20, help='epochs the model should be trained')
     parser.add_argument('--loss_function', type=str, choices=['dice', 'jaccard', 'focal', 'cross-entropy', 'weighted-CE'], default='jaccard')
     parser.add_argument('--lr', type=float, default=3e-4, help='maximum learning rate')
@@ -88,6 +88,8 @@ if __name__ == '__main__':
         model = UNet(in_channels=3, out_channels=NUM_CLASSES, layer_channels=[64, 128, 256, 512]).to(device)
     if opt.model == 'segformer':
         model = segformer(in_channels=3, num_classes=NUM_CLASSES).to(device)
+    if opt.model == 'segformer-b5':
+        model = segformer(in_channels=3, num_classes=NUM_CLASSES, depths=(3, 6, 40, 3)).to(device)
     
     # set model name
     if not opt.name == None:
