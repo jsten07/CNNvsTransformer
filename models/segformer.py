@@ -50,14 +50,14 @@ class efficient_self_attention(nn.Module):
     def __init__(self, attn_dim, num_heads, dropout_p, sr_ratio):
         super().__init__()
         assert attn_dim % num_heads == 0, f'expected attn_dim {attn_dim} to be a multiple of num_heads {num_heads}'
-        # (64, 128, 320, 512)
+        # number of channels per stage (64, 128, 320, 512)
         self.attn_dim = attn_dim
-        # (1, 2, 5, 8)
+        # attention heads per stage (1, 2, 5, 8)
         self.num_heads = num_heads
         self.dropout_p = dropout_p
-        # (8, 4, 2, 1)
+        # sequence reduction ratio for efficient self-attention (8, 4, 2, 1) -> sqr of (64, 16, 4, 1) mentioned in paper
         self.sr_ratio = sr_ratio
-        # sequence reduction process; sr_ratio = [8,4,2,1] -> paper mentions squared values
+        # sequence reduction process; apply convolution to reduce size of the sequence 
         if sr_ratio > 1:
             self.sr = nn.Conv2d(attn_dim, attn_dim, kernel_size=sr_ratio, stride=sr_ratio)
             self.norm = nn.LayerNorm(attn_dim)
@@ -77,11 +77,9 @@ class efficient_self_attention(nn.Module):
     def forward(self, x, h, w):
         # create queries, i.e. apply linear transformation 
         q = self.q(x)
-        # print(q.shape)
         q = rearrange(q, ('b hw (m c) -> b m hw c'), m=self.num_heads)
-        # print(q.shape)
 
-        # reduction when reduction ratio of efficient self attention is > 1, i.e. for stages 1-3 as sr=[8,4,2,1]
+        # reduce size of sequence for stages 1-3 by applying convolution and linear projection
         if self.sr_ratio > 1:
             x = rearrange(x, 'b (h w) c -> b c h w', h=h, w=w)
             x = self.sr(x)
@@ -93,15 +91,11 @@ class efficient_self_attention(nn.Module):
         x = rearrange(x, 'b d (a m c) -> a b m d c', a=2, m=self.num_heads)
         k, v = x[0], x[1] # x.unbind(0)
         
-        # print(k.shape)
-        # print(v.shape)
-        
-        # matrix multiplication (dot product) of q and k; divide by 8 (scale = 0.125)
+        # calculate attention: matrix multiplication (dot product) of q and k; divide by 8 (scale = 0.125)
         attn = (q @ k.transpose(-2, -1)) * self.scale
         attn = attn.softmax(dim=-1)
         
-        # print(attn.shape)
-        
+        # apply attention weights to values
         x = attn @ v
         x = rearrange(x, 'b m hw c -> b hw (m c)')
         x = self.proj(x)
