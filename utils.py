@@ -472,6 +472,7 @@ def train_id_to_color(classes):
     for i, c in enumerate(classes):
         legend_elements.append(Patch(facecolor=id_to_color[i]/255, label=c))
         
+    # print(legend_elements[0].get_label())
     return id_to_color, legend_elements
 
 
@@ -485,8 +486,8 @@ def train_id_to_color(classes):
 #                   ]
 
 diff_legend = [
-    Patch(facecolor='green', label='true'), 
-    Patch(facecolor='red', label='false'), 
+    Patch(facecolor='#00fa00', label='True'), 
+    Patch(facecolor='#c80000', label='False'), 
 ]
 
 def visualize_predictions(model : torch.nn.Module, 
@@ -498,7 +499,9 @@ def visualize_predictions(model : torch.nn.Module,
                           seed : int = None, 
                           norm_dataset = 'own', 
                           # rgb = True, 
-                          classes=None):
+                          classes=None,
+                          model_label=""
+                         ):
     """Function visualizes predictions of input model on samples from
     cityscapes dataset provided
 
@@ -521,7 +524,10 @@ def visualize_predictions(model : torch.nn.Module,
     # _, axes = plt.subplots(numTestSamples, 3, figsize=(3*6, numTestSamples * 4))
     
     id_to_color, legend_elements = train_id_to_color(classes)
-    id_to_rg = np.array([[255, 0, 0], [0, 150, 0]])
+    for handle in legend_elements:
+        if handle.get_label() == 'Impervious':
+            handle.set_edgecolor("gray")
+    id_to_rg = np.array([[200, 0, 0], [0, 250, 0]])
     
     for i, sampleID in enumerate(testSamples):
         inputImage, gt = dataSet[sampleID]
@@ -546,15 +552,18 @@ def visualize_predictions(model : torch.nn.Module,
         label_class_predicted = y_pred.cpu().detach().numpy()    
         axes[i, 2].imshow(id_to_color[label_class_predicted])
         axes[i, 2].legend(handles=legend_elements, loc = 'upper left', bbox_to_anchor=(-0.7, 0.9))
-        axes[i, 2].set_title("Predicted Label")
+        axes[i, 2].set_title("Prediction "+model_label)
 
         # difference groundtruth and prediction
         diff = label_class == label_class_predicted
         axes[i, 3].imshow(id_to_rg[diff*1])#, cmap = rgcmap) # make int to map 0 and 1 to cmap, otherwise a 
         axes[i, 3].legend(handles=diff_legend)
-        axes[i, 3].set_title("Difference")
+        axes[i, 3].set_title("Correctness "+model_label)
         # print(diff*1)
         # issue: if the whole image is predicted wrong, it is visualized green (probably because imshow simply takes first color from cmap?)
+    for ax in axes.reshape(-1): 
+        ax.set_xticks([])
+        ax.set_yticks([])
 
     plt.show()
     
@@ -586,6 +595,10 @@ def compare_models_onOneImage(model1 : torch.nn.Module,
     
     if plot_title:
         _.suptitle(plot_title, fontsize=20)
+        
+    plt.rcParams.update({'font.size': 12})
+    if len(classes) == 10:
+        plt.rcParams.update({'font.size': 11})
     
     model1.to(device=device)
     model1.eval()
@@ -601,7 +614,10 @@ def compare_models_onOneImage(model1 : torch.nn.Module,
     # _, axes = plt.subplots(numTestSamples, 3, figsize=(3*6, numTestSamples * 4))
     
     id_to_color, legend_elements = train_id_to_color(classes)
-    id_to_rg = np.array([[255, 0, 0], [0, 150, 0]])
+    for handle in legend_elements:
+        if handle.get_label() == 'Impervious':
+            handle.set_edgecolor("gray")
+    id_to_rg = np.array([[200, 0, 0], [0, 250, 0]])
 
     # input rgb image   
     inputImage = inputImage.to(device)
@@ -611,7 +627,8 @@ def compare_models_onOneImage(model1 : torch.nn.Module,
     else: 
         landscape = inputImage.permute(1, 2, 0).cpu().detach().numpy()
     axes[0, 0].imshow(landscape)
-    axes[0, 0].set_title(im_name)
+    # axes[0, 0].set_title(im_name)
+    axes[0, 0].set_title('Input Image')
 
     # groundtruth label image
     label_class = gt.cpu().detach().numpy()
@@ -627,8 +644,8 @@ def compare_models_onOneImage(model1 : torch.nn.Module,
     # difference groundtruth and prediction
     diff = label_class == label_class_predicted1
     axes[0, 2].imshow(id_to_rg[diff*1])#, cmap = rgcmap) # make int to map 0 and 1 to cmap, otherwise a 
-    axes[0, 2].legend(handles=diff_legend)
-    axes[0, 2].set_title("Difference")
+    # axes[0, 2].legend(handles=diff_legend)
+    axes[0, 2].set_title("Correctness "+model1_label)
     
     # predicted label image
     y_pred2 = torch.argmax(model2(inputImage.unsqueeze(0)), dim=1).squeeze(0)
@@ -640,10 +657,17 @@ def compare_models_onOneImage(model1 : torch.nn.Module,
     # difference groundtruth and prediction
     diff = label_class == label_class_predicted2
     axes[1, 2].imshow(id_to_rg[diff*1])#, cmap = rgcmap) # make int to map 0 and 1 to cmap, otherwise a 
-    axes[1, 2].legend(handles=diff_legend)
-    axes[1, 2].set_title("Difference")
+    axes[1, 2].legend(handles=diff_legend, loc = 'upper left', bbox_to_anchor=(-0.5, 1.2))
+    # axes[1, 2].legend(handles=diff_legend)
+    axes[1, 2].set_title("Correctness "+model2_label)
+    
+    for ax in axes.reshape(-1): 
+        ax.set_xticks([])
+        ax.set_yticks([])
 
     plt.show()
+    
+    return _
 
 
 #######################################
@@ -664,20 +688,20 @@ def rgb_to_2D_label(label):
     Suply our labale masks as input in RGB format. 
     Replace pixels with specific RGB values ...
     """
-    impervious = [255, 255, 255]
-    building = [0, 0, 255]
-    vegetation = [0, 255, 255]
-    tree = [0, 255, 0]
-    car = [255, 255, 0]
-    clutter = [255, 0, 0]
+    Impervious = [255, 255, 255]
+    Building = [0, 0, 255]
+    Vegetation = [0, 255, 255]
+    Tree = [0, 255, 0]
+    Car = [255, 255, 0]
+    Clutter = [255, 0, 0]
 
     label_seg = np.zeros(label.shape,dtype=np.uint8)
-    label_seg [np.all(label==impervious,axis=-1)] = 0
-    label_seg [np.all(label==building,axis=-1)] = 1
-    label_seg [np.all(label==vegetation,axis=-1)] = 2
-    label_seg [np.all(label==tree,axis=-1)] = 3
-    label_seg [np.all(label==car,axis=-1)] = 4
-    label_seg [np.all(label==clutter,axis=-1)] = 5
+    label_seg [np.all(label==Impervious,axis=-1)] = 0
+    label_seg [np.all(label==Building,axis=-1)] = 1
+    label_seg [np.all(label==Vegetation,axis=-1)] = 2
+    label_seg [np.all(label==Tree,axis=-1)] = 3
+    label_seg [np.all(label==Car,axis=-1)] = 4
+    label_seg [np.all(label==Clutter,axis=-1)] = 5
 
     # label_seg = label_seg[:,:,0]  #Just take the first channel, no need for all 3 channels
     
@@ -722,7 +746,7 @@ class Dataset(BaseDataset):
         self.dims = (patch_size, patch_size)
         
         # convert str names to class values on masks
-        self.class_values = [self.CLASSES.index(cls.lower()) for cls in classes]
+        self.class_values = [self.CLASSES.index(cls) for cls in classes]
         
         self.augmentation = augmentation
         self.normalization = normalization
@@ -788,9 +812,9 @@ class Dataset(BaseDataset):
 def load_datasets(data_dir, random_split = False, augmentation = None, normalize = True, classes='potsdam', patch_size=512, only_test=False, dataset='potsdam'):
 
     if classes == 'potsdam':
-        CLASSES=['impervious', 'building', 'vegetation', 'tree', 'car', 'clutter']
+        CLASSES=['Impervious', 'Building', 'Vegetation', 'Tree', 'Car', 'Clutter']
     if classes == 'floodnet':
-        CLASSES = ['background', 'building-flooded', 'building-non-flooded', 'road-flooded', 'road-non-flooded', 'water', 'tree', 'vehicle', 'pool', 'grass']
+        CLASSES = ['Background', 'Building-flooded', 'Building-non-flooded', 'Road-flooded', 'Road-non-flooded', 'Water', 'Tree', 'Vehicle', 'Pool', 'Grass']
     
     x_test_dir = os.path.join(data_dir, 'rgb_test')
     y_test_dir = os.path.join(data_dir, 'label_test')
