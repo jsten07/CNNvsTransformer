@@ -78,43 +78,6 @@ def inverse_transform(dataset):
 ###################################
 # METRIC CLASS DEFINITION
 ###################################
-
-class meanIoU:
-    """ Class to find the mean IoU using confusion matrix approach """    
-    def __init__(self, num_classes):
-        self.iou_metric = 0.0
-        self.num_classes = num_classes
-        # placeholder for confusion matrix on entire dataset
-        self.confusion_matrix = np.zeros((self.num_classes, self.num_classes))
-
-    def update(self, y_preds, labels):
-        """ Function finds the IoU for the input batch
-        and add batch metrics to overall metrics """
-        predicted_labels = torch.argmax(y_preds, dim=1)
-        batch_confusion_matrix = self._fast_hist(labels.numpy().flatten(), predicted_labels.numpy().flatten())
-        self.confusion_matrix += batch_confusion_matrix
-    
-    def _fast_hist(self, label_true, label_pred):
-        """ Function to calculate confusion matrix on single batch """
-        mask = (label_true >= 0) & (label_true < self.num_classes)
-        hist = np.bincount(
-            self.num_classes * label_true[mask].astype(int) + label_pred[mask],
-            minlength=self.num_classes ** 2,
-        ).reshape(self.num_classes, self.num_classes)
-        return hist
-
-    def compute(self):
-        """ Computes overall meanIoU metric from confusion matrix data """ 
-        hist = self.confusion_matrix
-        # print(hist)
-        iu = np.diag(hist) / (hist.sum(axis=1) + hist.sum(axis=0) - np.diag(hist))
-        mean_iu = np.nanmean(iu)
-        return mean_iu
-
-    def reset(self):
-        self.iou_metric = 0.0
-        self.confusion_matrix = np.zeros((self.num_classes, self.num_classes))
-        
         
 class IoU:
     """ Class to find the mean IoU using confusion matrix approach """    
@@ -172,58 +135,11 @@ class IoU:
         self.iou_metric = 0.0
         self.confusion_matrix = np.zeros((self.num_classes, self.num_classes))
         
-        
-
-
-###################################
-# POLY LR DECAY SCHEDULER DEFINITION
-###################################
-
-class polynomial_lr_decay(_LRScheduler):
-    """Polynomial learning rate decay until step reach to max_decay_step
-    
-    Args:
-        optimizer (Optimizer): Wrapped optimizer.
-        max_decay_steps: after this step, we stop decreasing learning rate
-        end_learning_rate: scheduler stoping learning rate decay, value of learning rate must be this value
-        power: The power of the polynomial.
-    
-    Reference:
-        https://github.com/cmpark0126/pytorch-polynomial-lr-decay
-    """
-    def __init__(self, optimizer, max_decay_steps, end_learning_rate=0.0001, power=1.0):
-        if max_decay_steps <= 1.:
-            raise ValueError('max_decay_steps should be greater than 1.')
-        self.max_decay_steps = max_decay_steps
-        self.end_learning_rate = end_learning_rate
-        self.power = power
-        self.last_step = 0
-        super().__init__(optimizer)
-        
-    def get_lr(self):
-        if self.last_step > self.max_decay_steps:
-            return [self.end_learning_rate for _ in self.base_lrs]
-
-        return [(base_lr - self.end_learning_rate) * 
-                ((1 - self.last_step / self.max_decay_steps) ** (self.power)) + 
-                self.end_learning_rate for base_lr in self.base_lrs]
-    
-    def step(self, step=None):
-        if step is None:
-            step = self.last_step + 1
-        self.last_step = step if step != 0 else 1
-        if self.last_step <= self.max_decay_steps:
-            decay_lrs = [(base_lr - self.end_learning_rate) * 
-                         ((1 - self.last_step / self.max_decay_steps) ** (self.power)) + 
-                         self.end_learning_rate for base_lr in self.base_lrs]
-            for param_group, lr in zip(self.optimizer.param_groups, decay_lrs):
-                param_group['lr'] = lr
 
 
 ###################################
 # FUNCTION TO PLOT TRAINING, VALIDATION CURVES
 ###################################
-
 
 def plot_training_results(df, model_name):
     fig, ax1 = plt.subplots(figsize=(10,4))
@@ -235,9 +151,16 @@ def plot_training_results(df, model_name):
     ax2.set_ylabel('validationLoss', color='tab:blue')
     ax2.plot(df['epoch'].values, df['validationLoss'].values, color='tab:blue')
     ax2.tick_params(axis='y', labelcolor='tab:blue')
+    
+    ax3 = ax1.twinx()  
+    ax3.set_ylabel('trainingTime(sec)', color='tab:orange', labelpad=-32)
+    ax3.tick_params(axis="y",direction="in", pad=-23)
+    ax3.plot(df['epoch'].values, df['duration_train'].dt.total_seconds(), color='tab:orange')
+    ax3.tick_params(axis='y', labelcolor='tab:orange')
 
     plt.suptitle(f'{model_name} Training, Validation Curves')
     plt.show()
+
 
 
 
@@ -245,7 +168,28 @@ def plot_training_results(df, model_name):
 # FUNCTION TO EVALUATE MODEL ON DATALOADER
 ###################################
 
-def evaluate_model(model, dataloader, criterion, metric_class, num_classes, device):
+def evaluate_model(
+        model : torch.nn.Module, 
+        dataloader : torch.utils.data.Dataloader, 
+        criterion, 
+        metric_class, 
+        num_classes : int, 
+        device : torch.device
+        ):
+    """Evaluate a model on given data
+
+    Args:
+        model (torch.nn.Module): Model to train; either of class UNet or segformer
+        criterion (): loss function, e.g. smp.losses.JaccardLoss
+        metric_class (_type_): metrics to evaluate the model
+        dataloader (torch.utils.data.Dataloader): dataloader for test data
+        num_classes (int): number of semantic classes
+        device (torch.device): device to train on; e.g. "cuda:0" or "cpu"
+
+    Returns:
+        _type_: evaluation metrics
+    """
+    
     model.eval()
     total_loss = 0.0
     metric_object = metric_class(num_classes)
@@ -276,28 +220,40 @@ def evaluate_model(model, dataloader, criterion, metric_class, num_classes, devi
 # FUNCTION TO TRAIN, VALIDATE MODEL ON DATALOADER
 ###################################
 
-def train_validate_model(model, num_epochs, model_name, criterion, optimizer, 
-                         device, dataloader_train, dataloader_valid, 
-                         metric_class, num_classes, lr_scheduler = None,
-                         output_path = '.', early_stop = -1):
-    """Train model and validate
-    # TODO
+def train_validate_model(
+        model : torch.nn.Module, 
+        num_epochs : int, 
+        model_name : str, 
+        criterion, 
+        optimizer : torch.optim, 
+        device : torch.device, 
+        dataloader_train : torch.utils.data.Dataloader, 
+        dataloader_valid : torch.utils.data.Dataloader, 
+        metric_class, 
+        num_classes : int, 
+        lr_scheduler = None,
+        output_path : str = '.', 
+        early_stop : int = -1
+        ):
+    """Train and validate a model
+
     Args:
-        model
-        num_epochs
-        model_name
-        criterion
-        optimizer
-        device
-        dataloader_train
-        dataloader_valid
-        metric_class
-        num_classes
-        lr_scheduler 
-        output_path
-        early_stop: number of epochs after which the training 
-            should be stopped if the validation loss did not increase; 
-            -1: do not apply early stop
+        model (torch.nn.Module): Model to train; either of class UNet or segformer
+        num_epochs (int): number of epochs to train
+        model_name (str): name to save the model
+        criterion (): loss function, e.g. smp.losses.JaccardLoss
+        optimizer (torch.optim): Optimizer, e.g. Adam
+        device (torch.device): device to train on; e.g. "cuda:0" or "cpu"
+        dataloader_train (torch.utils.data.Dataloader): dataloader for training data
+        dataloader_valid (torch.utils.data.Dataloader): dataloader for validation data
+        metric_class (_type_): metrics to evaluate the model
+        num_classes (int): number of semantic classes
+        lr_scheduler (_type_, optional): learning rate scheduler; e.g. torch.optim.lr_scheduler.OneCycleLR . Defaults to None.
+        output_path (str, optional): Directory to save the model at. Defaults to '.'.
+        early_stop (int, optional): Number of epochs for an early stopping of the training. I.e. after the number of epochs given here without an improvement in the validation loss, the training is stopped. Defaults to -1.
+
+    Returns:
+        pd.Dataframe: evaluation metrics
     """
     early_stop_threshold = early_stop
     
@@ -434,9 +390,6 @@ def train_validate_model(model, num_epochs, model_name, criterion, optimizer,
 # FUNCTION TO VISUALIZE MODEL PREDICTIONS
 ###################################
 
-# Constants for Standard color mapping
-# reference : https://github.com/bdd100k/bdd100k/blob/master/bdd100k/label/label.py
-
 
 def train_id_to_color(classes):
     Label = namedtuple( "Label", [ "name", "train_id", "color"])
@@ -472,7 +425,6 @@ def train_id_to_color(classes):
     for i, c in enumerate(classes):
         legend_elements.append(Patch(facecolor=id_to_color[i]/255, label=c))
         
-    # print(legend_elements[0].get_label())
     return id_to_color, legend_elements
 
 
@@ -502,8 +454,8 @@ def visualize_predictions(model : torch.nn.Module,
                           classes=None,
                           model_label=""
                          ):
-    """Function visualizes predictions of input model on samples from
-    cityscapes dataset provided
+    """Function visualizes predictions of input model on samples from the provided dataset.
+    Shows input image, next to ground truth, prediction and their difference.
 
     Args:
         model (torch.nn.Module): model whose output we're to visualize
@@ -511,6 +463,10 @@ def visualize_predictions(model : torch.nn.Module,
         device (torch.device): compute device as in GPU, CPU etc
         numTestSamples (int): number of samples to plot
         id_to_color (np.ndarray) : array to map class to colormap
+        seed (int) : random seed to control the selected samples
+        norm_dataset (String) : select between one of 'imagenet', 'potsdam', 'potsdam_irrg', 'floodnet', 'vaihingen' to apply respective normalization to the images; default 'own' applies (false) imagenet normalization
+        classes : array with classes of the dataset; currently implemented ISPRS and FloodNet datasets with 6 and 10 classes respectively
+        model_label (String) : text that should be added to the figure title
     """
     model.to(device=device)
     model.eval()
@@ -560,7 +516,7 @@ def visualize_predictions(model : torch.nn.Module,
         axes[i, 3].legend(handles=diff_legend)
         axes[i, 3].set_title("Correctness "+model_label)
         # print(diff*1)
-        # issue: if the whole image is predicted wrong, it is visualized green (probably because imshow simply takes first color from cmap?)
+        # issue (solved?): if the whole image is predicted wrong, it is visualized green (probably because imshow simply takes first color from cmap?)
     for ax in axes.reshape(-1): 
         ax.set_xticks([])
         ax.set_yticks([])
@@ -573,23 +529,28 @@ def compare_models_onOneImage(model1 : torch.nn.Module,
                               model2 : torch.nn.Module, 
                               dataset: Dataset,
                               im_name : str,  
-                              device :torch.device, 
+                              device : torch.device, 
                               normalization = True, 
-                              classes=None,
-                              norm_dataset='own',
-                              model1_label = 'U-Net',
-                              model2_label = 'SegFormer',
-                              plot_title = None
+                              classes = None,
+                              norm_dataset : str = 'own',
+                              model1_label : str = 'U-Net',
+                              model2_label : str = 'SegFormer',
+                              plot_title : str = None
                              ):
-    """Function visualizes predictions of input model on samples from
-    cityscapes dataset provided
+    """Function visualizes predictions of two input models on one sample from the provided dataset.
+    Shows input image, ground truth and the prediction and difference per model. 
 
     Args:
-        model (torch.nn.Module): model whose output we're to visualize
+        model1 (torch.nn.Module): first model whose output we're to visualize
+        model2 (torch.nn.Module): second model whose output we're to visualize
         dataSet (Dataset): dataset to take samples from
+        im_name (str) :  name of the image the models are be applied to
         device (torch.device): compute device as in GPU, CPU etc
-        numTestSamples (int): number of samples to plot
-        id_to_color (np.ndarray) : array to map class to colormap
+        classes : array with classes of the dataset; currently implemented ISPRS and FloodNet datasets with 6 and 10 classes respectively
+        norm_dataset (String) : select between one of 'imagenet', 'potsdam', 'potsdam_irrg', 'floodnet', 'vaihingen' to apply respective normalization to the images; default 'own' applies (false) imagenet normalization
+        model_label1 (String) : text that should be added to the figure title for the first model
+        model_label2 (String) : text that should be added to the figure title for the second model
+        plot_title (String) : title of the whole figure
     """
     _, axes = plt.subplots(2, 3, figsize=(4*5, 3 * 3))
     
@@ -607,12 +568,12 @@ def compare_models_onOneImage(model1 : torch.nn.Module,
     model2.eval()
     
     #################
-    # predictions on random samples
     # testSamples = np.random.choice(len(dataSet), numTestSamples).tolist()
+    # get image from the dataset by its file name
     imId = dataset.get_id_by_name(im_name)
     inputImage, gt = dataset[imId]
-    # _, axes = plt.subplots(numTestSamples, 3, figsize=(3*6, numTestSamples * 4))
     
+    # set colors and legend
     id_to_color, legend_elements = train_id_to_color(classes)
     for handle in legend_elements:
         if handle.get_label() == 'Impervious':
@@ -627,7 +588,6 @@ def compare_models_onOneImage(model1 : torch.nn.Module,
     else: 
         landscape = inputImage.permute(1, 2, 0).cpu().detach().numpy()
     axes[0, 0].imshow(landscape)
-    # axes[0, 0].set_title(im_name)
     axes[0, 0].set_title('Input Image')
 
     # groundtruth label image
@@ -644,7 +604,6 @@ def compare_models_onOneImage(model1 : torch.nn.Module,
     # difference groundtruth and prediction
     diff = label_class == label_class_predicted1
     axes[0, 2].imshow(id_to_rg[diff*1])#, cmap = rgcmap) # make int to map 0 and 1 to cmap, otherwise a 
-    # axes[0, 2].legend(handles=diff_legend)
     axes[0, 2].set_title("Correctness "+model1_label)
     
     # predicted label image
@@ -658,7 +617,6 @@ def compare_models_onOneImage(model1 : torch.nn.Module,
     diff = label_class == label_class_predicted2
     axes[1, 2].imshow(id_to_rg[diff*1])#, cmap = rgcmap) # make int to map 0 and 1 to cmap, otherwise a 
     axes[1, 2].legend(handles=diff_legend, loc = 'upper left', bbox_to_anchor=(-0.5, 1.2))
-    # axes[1, 2].legend(handles=diff_legend)
     axes[1, 2].set_title("Correctness "+model2_label)
     
     for ax in axes.reshape(-1): 
@@ -685,7 +643,7 @@ from torch.utils.data import Dataset as BaseDataset
 #if matches then replace all values in that pixel with a specific integer
 def rgb_to_2D_label(label):
     """
-    Suply our labale masks as input in RGB format. 
+    Suply our label masks as input in RGB format. 
     Replace pixels with specific RGB values ...
     """
     Impervious = [255, 255, 255]
@@ -809,7 +767,32 @@ class Dataset(BaseDataset):
         return len(self.im_ids)
 
 
-def load_datasets(data_dir, random_split = False, augmentation = None, normalize = True, classes='potsdam', patch_size=512, only_test=False, dataset='potsdam'):
+def load_datasets(
+        data_dir : str, 
+        random_split : bool = True, 
+        augmentation : torch.nn.Sequential = None, 
+        normalize : bool = True, 
+        classes : str = 'potsdam', 
+        patch_size : int = 512, 
+        only_test : bool = False, 
+        dataset : str = 'potsdam'
+        ):
+    """Load and prepare datasets
+
+    Args:
+        data_dir (str): path to data, must be split into subdirs /rgb, /label, /rgb_test, /rgb_label
+        random_split (bool, optional): True splits the train and validation data randomly. If false it is necessary to add subdirs /rgb_valid and /label_valid. Defaults to True.
+        augmentation (torch.nn.Sequential, optional): Augmenation settings. Defaults to None.
+        normalize (bool, optional): If true, apply normalization corresponding to parameter dataset. Defaults to True.
+        classes (str, optional): Classes that correspond to the dataset. Choose between 'potsdam' and 'floodnet'. Defaults to 'potsdam'.
+        patch_size (int, optional): Patch size that the images are resized to. Defaults to 512.
+        only_test (bool, optional): If true, only return the test dataset. Defaults to False.
+        dataset (str, optional): Dataset used for normalization. Choose from one of 'imagenet', 'potsdam', 'potsdam_irrg', 'floodnet', 'vaihingen'. Defaults to 'potsdam'.
+
+    Returns:
+        Dataset: Either only the test dataset or training dataset, validation dataset, test dataset
+    """
+
 
     if classes == 'potsdam':
         CLASSES=['Impervious', 'Building', 'Vegetation', 'Tree', 'Car', 'Clutter']
