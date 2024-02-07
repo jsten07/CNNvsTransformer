@@ -6,7 +6,7 @@ Master Thesis at the Institute for Geoinformatics, University of Münster, Germa
 ### Description
 
 With the given code, results for the thesis mentioned above were created.
-A pdf of the thesis will be added soon.
+The thesis is available as [pdf file](https://github.com/jsten07/CNNvsTransformer/blob/main/thesis/thesis.pdf) in this repository at `\thesis`.
 
 In the following some basic steps to use the code are described but might need some adaptations, based on the utilized infrastructure.
 
